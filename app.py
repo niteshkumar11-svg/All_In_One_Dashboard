@@ -277,6 +277,13 @@ st.markdown(
       button[data-baseweb="tab"]{ padding-top:.2rem; padding-bottom:.2rem; }
       [data-baseweb="tab-panel"]{ padding-top:.1rem; }
 
+      /* Faint tiled diagonal "N K" watermark across the whole page. Subtle at 100%
+         zoom, clearer when zoomed in; click-through and painted above the content. */
+      body::after{ content:""; position:fixed; top:0; left:0; right:0; bottom:0;
+          z-index:2147483000; pointer-events:none; opacity:.05;
+          background-repeat:repeat; background-size:210px 150px;
+          background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='210'%20height='150'%3E%3Ctext%20x='105'%20y='80'%20font-family='Inter,Arial,sans-serif'%20font-size='26'%20font-weight='700'%20fill='%23808080'%20text-anchor='middle'%20transform='rotate(-28%20105%2075)'%3EN%20K%3C/text%3E%3C/svg%3E"); }
+
       /* transforms only (no opacity) so a stalled animation can never leave an
          element invisible — the table, titles and buttons are always rendered */
       @keyframes fadeInUp{ from{transform:translateY(10px);} to{transform:none;} }
