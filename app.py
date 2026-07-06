@@ -67,6 +67,45 @@ function sizeTable(){
     w.style.maxHeight = avail + 'px';
   });
 }
+function makeColsResizable(){
+  // Excel-style column resizing: drag a header cell's right edge to widen it. Widths
+  // are set on an injected <colgroup> and remembered (sessionStorage) per table so
+  // they survive Streamlit reruns. Frozen (sticky-left) label columns are skipped.
+  doc.querySelectorAll('table.sheet').forEach(t=>{
+    if(t.__resizable) return;
+    const thead = t.tHead; if(!thead || !thead.rows.length) return;
+    t.__resizable = true;
+    let ncol = 0;
+    for(const r of t.rows){ let c=0; for(const cell of r.cells) c += cell.colSpan||1; if(c>ncol) ncol=c; }
+    const cg = doc.createElement('colgroup');
+    for(let i=0;i<ncol;i++) cg.appendChild(doc.createElement('col'));
+    t.insertBefore(cg, t.firstChild);
+    const cols = [...cg.children];
+    const row = thead.rows[thead.rows.length-1];
+    const sig = 'cw:'+[...row.cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
+    cols.forEach((col,i)=>{ let w=null; try{ w=sessionStorage.getItem(sig+'#'+i); }catch(e){} if(w) col.style.width=w; });
+    let ci = 0;
+    for(const cell of row.cells){
+      const span = cell.colSpan||1; const colIdx = Math.min(ci+span-1, cols.length-1); ci += span;
+      const cs = getComputedStyle(cell);
+      if(cs.position==='sticky' && cell.style.left) continue;   // skip frozen label columns
+      if(cs.position==='static') cell.style.position='relative';
+      const col = cols[colIdx];
+      const grip = doc.createElement('div'); grip.className='colgrip'; cell.appendChild(grip);
+      grip.addEventListener('mousedown', e=>{
+        e.preventDefault(); e.stopPropagation();
+        const startX = e.clientX, startW = cell.getBoundingClientRect().width;
+        doc.body.classList.add('col-resizing');
+        const move = ev=>{ col.style.width = Math.max(36, startW + (ev.clientX-startX)) + 'px'; };
+        const up = ()=>{ doc.removeEventListener('mousemove',move,true); doc.removeEventListener('mouseup',up,true);
+          doc.body.classList.remove('col-resizing');
+          try{ sessionStorage.setItem(sig+'#'+colIdx, col.style.width); }catch(e){} };
+        doc.addEventListener('mousemove',move,true); doc.addEventListener('mouseup',up,true);
+      });
+      grip.addEventListener('click', e=>e.stopPropagation());
+    }
+  });
+}
 function stackHeaders(){
   doc.querySelectorAll('table.sheet').forEach(t=>{
     const th = t.tHead; if(!th) return;
@@ -78,6 +117,7 @@ function stackHeaders(){
     }
   });
   sizeTable();
+  makeColsResizable();
 }
 stackHeaders();
 if(pwin.requestAnimationFrame) pwin.requestAnimationFrame(stackHeaders);
@@ -106,6 +146,11 @@ s.textContent = `
       box-shadow: inset 0 0 0 9999px rgba(255,45,45,.22); }
   table.sheet td.laser-keep, table.sheet th.laser-keep {
       box-shadow: inset 0 0 0 9999px rgba(255,45,45,.22), inset 0 0 0 2px #ff2d2d; }
+  /* Excel-style column resize grip on the right edge of each header cell */
+  table.sheet .colgrip { position:absolute; top:0; right:-3px; width:8px; height:100%;
+      cursor:col-resize; z-index:6; }
+  body.col-resizing, body.col-resizing * { cursor:col-resize !important;
+      user-select:none !important; -webkit-user-select:none !important; }
 `;
 // Delegated handlers on the document, replaced each run so they never go stale
 // when Streamlit recreates this component iframe. Press-drag-release rubber band.
@@ -156,6 +201,7 @@ function _sortTable(t, col, dir){
   }).forEach(r=> tb.appendChild(r));
 }
 const sortClick = e=>{
+  if(e.target.closest('.colgrip')) return;   // resizing a column, not sorting
   const th=e.target.closest('th'); if(!th || !th.closest('thead')) return;
   const t=th.closest('table.sheet'); if(!t || !t.dataset.sortable) return;
   const col=_colIndexOf(th);
@@ -776,8 +822,9 @@ st.sidebar.divider()
 nav_ph = st.sidebar.container()
 st.sidebar.divider()
 font_rem = st.sidebar.slider("🔠 Table font size", 0.6, 1.5, 0.9, 0.05)
-cell_w = st.sidebar.slider("↔️ Data cell width", 2.5, 14.0, 6.0, 0.5)
-label_w = st.sidebar.slider("🏷️ Label (frozen) width", 3.0, 22.0, 9.0, 0.5)
+# Column widths are now resized directly IN the table (Excel-style: drag a column
+# header's right edge). These are just the starting widths.
+cell_w, label_w = 6.0, 9.0
 
 # --------------------------------------------------------------------------- #
 # Catalogue
