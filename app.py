@@ -68,38 +68,78 @@ function sizeTable(){
   });
 }
 function makeColsResizable(){
-  // Excel-style column resizing: drag a header cell's right edge to widen it. Widths
-  // are set on an injected <colgroup> and remembered (sessionStorage) per table so
-  // they survive Streamlit reruns. Frozen (sticky-left) label columns are skipped.
+  // Excel-style column resizing: drag ANY header cell's right edge to resize its
+  // column. Data columns resize via an injected <colgroup>; FROZEN (sticky-left)
+  // label columns resize by adjusting their pinned cell widths and recomputing every
+  // frozen column's sticky `left` so they stay aligned when scrolled horizontally.
+  // Widths persist per-table in sessionStorage so they survive Streamlit reruns.
   doc.querySelectorAll('table.sheet').forEach(t=>{
     if(t.__resizable) return;
     const thead = t.tHead; if(!thead || !thead.rows.length) return;
     t.__resizable = true;
-    let ncol = 0;
-    for(const r of t.rows){ let c=0; for(const cell of r.cells) c += cell.colSpan||1; if(c>ncol) ncol=c; }
-    const cg = doc.createElement('colgroup');
+
+    // map the table into a column grid (handles rowspan/colspan); tag start col + span
+    const grid=[];
+    [...t.rows].forEach((tr,r)=>{
+      if(!grid[r]) grid[r]=[];
+      let c=0;
+      for(const cell of tr.cells){
+        while(grid[r][c]) c++;
+        const rs=cell.rowSpan||1, csp=cell.colSpan||1;
+        cell.__sc=c; cell.__cs=csp;
+        for(let dr=0;dr<rs;dr++){ if(!grid[r+dr]) grid[r+dr]=[]; for(let dc=0;dc<csp;dc++) grid[r+dr][c+dc]=cell; }
+        c+=csp;
+      }
+    });
+    let ncol=0; grid.forEach(row=>{ if(row.length>ncol) ncol=row.length; });
+
+    // frozen cells = those with an inline sticky `left` (set by the renderer)
+    const frozenCells=[], frozenSet=new Set();
+    for(const cell of t.querySelectorAll('th,td')){
+      if(cell.style.left!==''){ frozenCells.push(cell); for(let k=0;k<cell.__cs;k++) frozenSet.add(cell.__sc+k); }
+    }
+    const frozenCols = frozenSet.size ? Math.max(...frozenSet)+1 : 0;
+
+    const cg=doc.createElement('colgroup');
     for(let i=0;i<ncol;i++) cg.appendChild(doc.createElement('col'));
     t.insertBefore(cg, t.firstChild);
-    const cols = [...cg.children];
-    const row = thead.rows[thead.rows.length-1];
-    const sig = 'cw:'+[...row.cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
-    cols.forEach((col,i)=>{ let w=null; try{ w=sessionStorage.getItem(sig+'#'+i); }catch(e){} if(w) col.style.width=w; });
-    let ci = 0;
-    for(const cell of row.cells){
-      const span = cell.colSpan||1; const colIdx = Math.min(ci+span-1, cols.length-1); ci += span;
-      const cs = getComputedStyle(cell);
-      if(cs.position==='sticky' && cell.style.left) continue;   // skip frozen label columns
-      if(cs.position==='static') cell.style.position='relative';
-      const col = cols[colIdx];
-      const grip = doc.createElement('div'); grip.className='colgrip'; cell.appendChild(grip);
+    const cols=[...cg.children];
+
+    // starting width of each column (measure a single-span cell in that column)
+    const colW=[];
+    for(let i=0;i<ncol;i++){ let w=0;
+      for(const row of grid){ const cell=row[i]; if(cell && cell.__sc===i && cell.__cs===1){ w=Math.round(cell.getBoundingClientRect().width); break; } }
+      colW[i]= w || (frozenSet.has(i)?130:80);
+    }
+    const sig='cw:'+[...thead.rows[thead.rows.length-1].cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
+
+    function applyFrozen(){
+      if(!frozenCells.length) return;
+      const leftOf=[]; let acc=0; for(let i=0;i<frozenCols;i++){ leftOf[i]=acc; acc+=colW[i]; }
+      for(const cell of frozenCells){ let wsum=0; for(let k=0;k<cell.__cs;k++) wsum+=colW[cell.__sc+k]||0;
+        cell.style.left=(leftOf[cell.__sc]||0)+'px';
+        cell.style.width=wsum+'px'; cell.style.minWidth=wsum+'px'; cell.style.maxWidth=wsum+'px'; }
+    }
+    const applyData=i=>{ cols[i].style.width=colW[i]+'px'; };
+
+    // restore saved widths (leave everything else at its natural size)
+    let frozenSaved=false;
+    for(let i=0;i<ncol;i++){ let sv=null; try{ sv=sessionStorage.getItem(sig+'#'+i); }catch(e){}
+      if(sv){ colW[i]=parseFloat(sv); if(frozenSet.has(i)) frozenSaved=true; else applyData(i); } }
+    if(frozenSaved) applyFrozen();
+
+    // add a resize grip to every cell of the last header row (frozen AND data)
+    for(const cell of thead.rows[thead.rows.length-1].cells){
+      const colIdx=Math.min(cell.__sc+cell.__cs-1, ncol-1);
+      const grip=doc.createElement('div'); grip.className='colgrip'; cell.appendChild(grip);
       grip.addEventListener('mousedown', e=>{
         e.preventDefault(); e.stopPropagation();
-        const startX = e.clientX, startW = cell.getBoundingClientRect().width;
+        const startX=e.clientX, startW=colW[colIdx], frozen=frozenSet.has(colIdx);
         doc.body.classList.add('col-resizing');
-        const move = ev=>{ col.style.width = Math.max(36, startW + (ev.clientX-startX)) + 'px'; };
-        const up = ()=>{ doc.removeEventListener('mousemove',move,true); doc.removeEventListener('mouseup',up,true);
+        const move=ev=>{ colW[colIdx]=Math.max(36, startW+(ev.clientX-startX)); if(frozen) applyFrozen(); else applyData(colIdx); };
+        const up=()=>{ doc.removeEventListener('mousemove',move,true); doc.removeEventListener('mouseup',up,true);
           doc.body.classList.remove('col-resizing');
-          try{ sessionStorage.setItem(sig+'#'+colIdx, col.style.width); }catch(e){} };
+          try{ sessionStorage.setItem(sig+'#'+colIdx, colW[colIdx]); }catch(e){} };
         doc.addEventListener('mousemove',move,true); doc.addEventListener('mouseup',up,true);
       });
       grip.addEventListener('click', e=>e.stopPropagation());
