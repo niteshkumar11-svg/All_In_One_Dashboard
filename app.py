@@ -735,14 +735,19 @@ def render_fm(values, colors, merges, fr, fc, kp):
                 wv[r][ci] = last
 
     # --- Filter control (Region / State / Zone). Sorting is by clicking headers. ---
+    # Use an expander (not a popover): multiselect dropdowns render reliably inside it,
+    # whereas a popover can leave the dropdown empty/behind it. Auto-open when a filter
+    # is active so it stays put while selecting.
     filters = {}
     if geo:
-        fcol, _rest = st.columns([1.3, 6])
-        with fcol.popover("⛃ Filter", use_container_width=True):
-            for ci, name in geo:
+        any_active = any(st.session_state.get(f"{kp}__f{ci}") for ci, _ in geo)
+        with st.expander("⛃ Filter", expanded=any_active):
+            fcols = st.columns(len(geo))
+            for j, (ci, name) in enumerate(geo):
                 vals = sorted({str(wv[r][ci]).strip() for r in data_rows
                                if ci < len(wv[r]) and str(wv[r][ci]).strip()})
-                picked = st.multiselect(name, vals, key=f"{kp}__f{ci}")
+                with fcols[j]:
+                    picked = st.multiselect(name, vals, key=f"{kp}__f{ci}")
                 if picked:
                     filters[ci] = set(picked)
 
