@@ -496,7 +496,7 @@ def _frozen(pos: int, frozen_cols: int, is_header: bool, bg: str, w: float) -> s
     if pos >= frozen_cols:
         return ""
     s = (f"position:sticky;left:{round(pos * w, 2)}em;width:{w}em;min-width:{w}em;max-width:{w}em;"
-         f"white-space:normal;overflow-wrap:anywhere;text-align:left;z-index:{4 if is_header else 1};")
+         f"white-space:normal;overflow-wrap:anywhere;z-index:{4 if is_header else 1};")
     if not bg:
         s += "background-color:var(--cell-bg,#ffffff);color:var(--cell-fg,#1f2d3d);"
     return s
