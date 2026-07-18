@@ -496,7 +496,7 @@ def _frozen(pos: int, frozen_cols: int, is_header: bool, bg: str, w: float) -> s
     if pos >= frozen_cols:
         return ""
     s = (f"position:sticky;left:{round(pos * w, 2)}em;width:{w}em;min-width:{w}em;max-width:{w}em;"
-         f"white-space:normal;overflow-wrap:anywhere;z-index:{4 if is_header else 1};")
+         f"white-space:normal;overflow-wrap:anywhere;text-align:left;z-index:{4 if is_header else 1};")
     if not bg:
         s += "background-color:var(--cell-bg,#ffffff);color:var(--cell-fg,#1f2d3d);"
     return s
@@ -589,7 +589,12 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
         return "<em>No data.</em>"
 
     def color_at(r, c):
-        return colors[r][c] if (r < len(colors) and c < len(colors[r])) else ""
+        # each format cell is a (background_hex, is_bold) tuple; tolerate a bare
+        # string or missing cell (slicing pads out-of-range cells with "")
+        v = colors[r][c] if (r < len(colors) and c < len(colors[r])) else ""
+        if isinstance(v, (list, tuple)):
+            return (v[0] or ""), (bool(v[1]) if len(v) > 1 else False)
+        return (v or ""), False
 
     fr, fc = frozen
     fc = max(0, min(fc, ncols))
@@ -628,7 +633,7 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
                     span += f' rowspan="{rs}"'
                 if cs > 1:
                     span += f' colspan="{cs}"'
-            bg = color_at(r, c)
+            bg, bold = color_at(r, c)
             if tag == "th" and not bg:
                 bg = HDR_LABEL
             val = grid[r][c] if c < len(grid[r]) else ""
@@ -636,7 +641,8 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
             if len(str(val).strip()) > 30:   # large text -> wrap to a readable width
                 ev = f'<div class="wrapcell">{ev}</div>'
             style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, label_w)
-            wt = "font-weight:700;" if (tag == "th" or r < fr) else ""
+            # bold header cells, plus any cell the sheet itself marks bold
+            wt = "font-weight:700;" if (tag == "th" or bold) else ""
             cells.append(f'<{tag}{span} style="{style}{wt}">{ev}</{tag}>')
         return "<tr>" + "".join(cells) + "</tr>"
 
