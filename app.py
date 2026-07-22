@@ -417,9 +417,7 @@ st.markdown(
       table.sheet th.sort-asc::after{ content:' \\25B2'; font-size:.72em; opacity:.85; }
       /* long paragraph cells wrap to a readable width instead of one huge line */
       table.sheet .wrapcell{ display:inline-block; max-width:30em; white-space:normal;
-          overflow-wrap:anywhere; text-align:left; line-height:1.3; }
-      /* frozen (sticky) columns stay centred, including wrapped long labels */
-      table.sheet [style*="position:sticky"] .wrapcell{ text-align:center; }
+          overflow-wrap:anywhere; text-align:center; line-height:1.3; }
     </style>
     """,
     unsafe_allow_html=True,
