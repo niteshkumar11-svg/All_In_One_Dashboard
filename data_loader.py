@@ -456,6 +456,24 @@ def _col_a1(n: int) -> str:
     return s
 
 
+def grid_window(ncols: int, nrows: int,
+                col_cap: int = 2000, row_cap: int = 400,
+                budget: int = 400_000) -> tuple[int, int]:
+    """API fetch window (rows, cols). Prefer width: newest dates are rightmost.
+
+    Sheets like Loss HJR already extend past column 700 (ZX) — 28-Jul lives around
+    AAL (~714). Shrinking columns to fit a cell budget silently drops those days
+    (Overall then shows a truncated latest day, e.g. only SC-RC / MRD for 27-Jul).
+    """
+    mc = min(max(int(ncols), 60), col_cap)
+    mr = min(max(int(nrows), 40), row_cap)
+    if mr * mc > budget:
+        mr = max(40, budget // mc)          # shrink rows first
+        if mr * mc > budget:
+            mc = max(60, budget // mr)
+    return mr, mc
+
+
 def parse_function(title: str) -> tuple[str, str]:
     """'Open STN-FC' -> ('Open STN', 'FC'); function = text after the last '-'."""
     if "-" in title:

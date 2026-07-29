@@ -834,13 +834,10 @@ def get_meta(tick: int = 0) -> list:
 def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
     # Date-grouped tables run oldest→newest left→right, so the LATEST dates live in
     # the rightmost columns — we must fetch the full width or "last 4 days" silently
-    # shows stale dates. The sheet's rowCount is usually inflated (1000s) vs the few
-    # real rows, so size the budget generously; the API only returns rows that hold
-    # data, keeping the actual payload small.
-    mc = min(max(int(ncols), 60), 700)
-    mr = min(max(int(nrows), 40), 400)
-    if mr * mc > 300_000:
-        mc = max(60, 300_000 // mr)
+    # shows stale / half-cut dates (e.g. Loss HJR past col 700 / ZX while 28-Jul
+    # sits at AAL). The API only returns populated cells, so a large A1 window
+    # stays cheap.
+    mr, mc = dl.grid_window(ncols, nrows)
     return dl.load_tab_grid(dict(st.secrets["gcp_service_account"]), title,
                             max_rows=mr, max_cols=mc)
 
@@ -1067,7 +1064,10 @@ with st.container():
                     unsafe_allow_html=True)
 
     if truncated:
-        st.caption("⚠️ Large tab — showing the first portion of rows/columns.")
+        st.warning(
+            "Large tab — only a portion of rows/columns was loaded. "
+            "Newest date columns may be incomplete or look empty."
+        )
 
 # highlighter is always on: hover outline + click-drag region highlight
 inject_laser(True)

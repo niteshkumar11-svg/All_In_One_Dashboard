@@ -46,11 +46,7 @@ def _detect_header(grid, ms=6):
 
 
 def analyse(sa, tab):
-    nc, nr = tab["cols"], tab["rows"]
-    mc = min(max(nc, 60), 600)
-    mr = min(max(nr, 40), 400)
-    if mr * mc > 150_000:
-        mc = max(60, 150_000 // mr)
+    mr, mc = dl.grid_window(tab["cols"], tab["rows"])
     values, _colors, trunc = dl.load_tab_grid(sa, tab["title"], max_rows=mr, max_cols=mc)
     values = _drop_blank(values)
     if not values:
