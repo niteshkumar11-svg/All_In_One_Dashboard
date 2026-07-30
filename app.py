@@ -417,7 +417,7 @@ st.markdown(
       table.sheet th.sort-asc::after{ content:' \\25B2'; font-size:.72em; opacity:.85; }
       /* long paragraph cells wrap to a readable width instead of one huge line */
       table.sheet .wrapcell{ display:inline-block; max-width:30em; white-space:normal;
-          overflow-wrap:anywhere; text-align:left; line-height:1.3; }
+          overflow-wrap:anywhere; text-align:center; line-height:1.3; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -589,7 +589,12 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
         return "<em>No data.</em>"
 
     def color_at(r, c):
-        return colors[r][c] if (r < len(colors) and c < len(colors[r])) else ""
+        # each format cell is a (background_hex, is_bold) tuple; tolerate a bare
+        # string or missing cell (slicing pads out-of-range cells with "")
+        v = colors[r][c] if (r < len(colors) and c < len(colors[r])) else ""
+        if isinstance(v, (list, tuple)):
+            return (v[0] or ""), (bool(v[1]) if len(v) > 1 else False)
+        return (v or ""), False
 
     fr, fc = frozen
     fc = max(0, min(fc, ncols))
@@ -628,7 +633,7 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
                     span += f' rowspan="{rs}"'
                 if cs > 1:
                     span += f' colspan="{cs}"'
-            bg = color_at(r, c)
+            bg, bold = color_at(r, c)
             if tag == "th" and not bg:
                 bg = HDR_LABEL
             val = grid[r][c] if c < len(grid[r]) else ""
@@ -636,7 +641,8 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
             if len(str(val).strip()) > 30:   # large text -> wrap to a readable width
                 ev = f'<div class="wrapcell">{ev}</div>'
             style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, label_w)
-            wt = "font-weight:700;" if (tag == "th" or r < fr) else ""
+            # bold header cells, plus any cell the sheet itself marks bold
+            wt = "font-weight:700;" if (tag == "th" or bold) else ""
             cells.append(f'<{tag}{span} style="{style}{wt}">{ev}</{tag}>')
         return "<tr>" + "".join(cells) + "</tr>"
 
@@ -828,13 +834,10 @@ def get_meta(tick: int = 0) -> list:
 def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
     # Date-grouped tables run oldest→newest left→right, so the LATEST dates live in
     # the rightmost columns — we must fetch the full width or "last 4 days" silently
-    # shows stale dates. The sheet's rowCount is usually inflated (1000s) vs the few
-    # real rows, so size the budget generously; the API only returns rows that hold
-    # data, keeping the actual payload small.
-    mc = min(max(int(ncols), 60), 2000)
-    mr = min(max(int(nrows), 40), 400)
-    if mr * mc > 600_000:
-        mc = max(60, 600_000 // mr)
+    # shows stale / half-cut dates (e.g. Loss HJR past col 700 / ZX while 28-Jul
+    # sits at AAL). The API only returns populated cells, so a large A1 window
+    # stays cheap.
+    mr, mc = dl.grid_window(ncols, nrows)
     return dl.load_tab_grid(dict(st.secrets["gcp_service_account"]), title,
                             max_rows=mr, max_cols=mc)
 
@@ -1061,7 +1064,10 @@ with st.container():
                     unsafe_allow_html=True)
 
     if truncated:
-        st.caption("⚠️ Large tab — showing the first portion of rows/columns.")
+        st.warning(
+            "Large tab — only a portion of rows/columns was loaded. "
+            "Newest date columns may be incomplete or look empty."
+        )
 
 # highlighter is always on: hover outline + click-drag region highlight
 inject_laser(True)

@@ -456,6 +456,24 @@ def _col_a1(n: int) -> str:
     return s
 
 
+def grid_window(ncols: int, nrows: int,
+                col_cap: int = 2000, row_cap: int = 400,
+                budget: int = 400_000) -> tuple[int, int]:
+    """API fetch window (rows, cols). Prefer width: newest dates are rightmost.
+
+    Sheets like Loss HJR already extend past column 700 (ZX) — 28-Jul lives around
+    AAL (~714). Shrinking columns to fit a cell budget silently drops those days
+    (Overall then shows a truncated latest day, e.g. only SC-RC / MRD for 27-Jul).
+    """
+    mc = min(max(int(ncols), 60), col_cap)
+    mr = min(max(int(nrows), 40), row_cap)
+    if mr * mc > budget:
+        mr = max(40, budget // mc)          # shrink rows first
+        if mr * mc > budget:
+            mc = max(60, budget // mr)
+    return mr, mc
+
+
 def parse_function(title: str) -> tuple[str, str]:
     """'Open STN-FC' -> ('Open STN', 'FC'); function = text after the last '-'."""
     if "-" in title:
@@ -507,8 +525,9 @@ def load_meta(service_account_info: dict, spreadsheet_id: str = SPREADSHEET_ID,
 def load_tab_grid(service_account_info: dict, title: str,
                   spreadsheet_id: str = SPREADSHEET_ID,
                   max_rows: int = 300, max_cols: int = 200) -> tuple[list, list, bool]:
-    """Fetch one tab's values + cell background colours (bounded window).
-    Returns (values_grid, color_grid, truncated)."""
+    """Fetch one tab's values + per-cell formatting (bounded window).
+    Returns (values_grid, format_grid, truncated) where each format cell is a
+    (background_hex, is_bold) tuple mirroring the sheet's own formatting."""
     from urllib.parse import quote
     sess = _session(service_account_info)
     safe = title.replace("'", "''")
@@ -516,7 +535,7 @@ def load_tab_grid(service_account_info: dict, title: str,
     url = (
         f"{_API}/{spreadsheet_id}?ranges={rng}&includeGridData=true"
         "&fields=sheets(data(rowData(values("
-        "formattedValue,effectiveFormat.backgroundColor))))"
+        "formattedValue,effectiveFormat.backgroundColor,effectiveFormat.textFormat.bold))))"
     )
     data = sess.get(url).json().get("sheets", [{}])[0].get("data", [{}])[0]
     row_data = data.get("rowData", [])
@@ -524,7 +543,9 @@ def load_tab_grid(service_account_info: dict, title: str,
     for rd in row_data:
         cells = rd.get("values", [])
         values.append([c.get("formattedValue", "") for c in cells])
-        colors.append([_bg_hex(c) for c in cells])
+        colors.append([(_bg_hex(c),
+                        bool(c.get("effectiveFormat", {}).get("textFormat", {}).get("bold")))
+                       for c in cells])
     truncated = len(values) >= max_rows or any(len(r) >= max_cols for r in values)
     return values, colors, truncated
 
