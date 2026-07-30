@@ -831,10 +831,10 @@ def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
     # shows stale dates. The sheet's rowCount is usually inflated (1000s) vs the few
     # real rows, so size the budget generously; the API only returns rows that hold
     # data, keeping the actual payload small.
-    mc = min(max(int(ncols), 60), 700)
+    mc = min(max(int(ncols), 60), 2000)
     mr = min(max(int(nrows), 40), 400)
-    if mr * mc > 300_000:
-        mc = max(60, 300_000 // mr)
+    if mr * mc > 600_000:
+        mc = max(60, 600_000 // mr)
     return dl.load_tab_grid(dict(st.secrets["gcp_service_account"]), title,
                             max_rows=mr, max_cols=mc)
 
