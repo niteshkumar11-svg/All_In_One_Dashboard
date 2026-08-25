@@ -38,6 +38,19 @@ Setup steps:
 
 The spreadsheet ID is hardcoded in `data_loader.py` (`SPREADSHEET_ID`). Google Sheets API and Drive API must be enabled in the GCP project.
 
+### Developing without GCP credentials
+
+The Streamlit UI will not render metric tables without `.streamlit/secrets.toml`, but you can still validate the environment offline:
+
+```bash
+python3 test_grid_window.py
+python3 -m py_compile app.py data_loader.py
+```
+
+To exercise the data pipeline without Google Sheets, build a local `data/snapshot.csv` with `build_snapshot.py` (from a sheet export) or by calling `data_loader.parse_grid()` and saving the result, then load it with `data_loader.load_snapshot()`.
+
+Streamlit still starts and serves on port 8501 — it shows a credential-setup error until secrets are configured.
+
 ### Tests and lint
 
 - **Unit self-check:** `python3 test_grid_window.py` (no network, no credentials)
