@@ -337,7 +337,7 @@ st.markdown(
       [data-testid="stSidebar"] [data-testid="stExpander"] summary svg{
           color:#163b68 !important; }
       [data-testid="stSidebar"] [data-testid="stExpander"] > div{
-          background:#eef4fd !important; padding:.15rem .3rem .3rem !important; }
+          background:#d8e4f7 !important; padding:.15rem .3rem .3rem !important; }
       [data-testid="stSidebar"] .stExpander .stButton>button{ background:transparent !important;
           border:none !important; border-left:3px solid transparent !important; box-shadow:none !important;
           border-radius:5px; justify-content:flex-start !important; text-align:left !important;
