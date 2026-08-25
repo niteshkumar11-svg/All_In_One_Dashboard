@@ -324,23 +324,35 @@ st.markdown(
       [data-testid="stSidebar"] h5, [data-testid="stSidebar"] label,
       [data-testid="stSidebar"] p, [data-testid="stSidebar"] span{ color:#1f2d3d !important; }
       [data-testid="stSidebar"] .sec-label{ color:#64748b !important; }
-      /* function / metric buttons: FLAT left-aligned menu items, dark text;
-         selected = accent-blue text with an accent left bar */
-      [data-testid="stSidebar"] .stButton>button{ background:transparent !important;
+      /* Function dropdowns: conventional solid cards, with metrics inside the
+         card instead of a separate, floating list. */
+      [data-testid="stSidebar"] [data-testid="stExpander"]{
+          border:0 !important; border-radius:7px !important; overflow:hidden;
+          background:#d8e4f7 !important; margin:.25rem 0 !important; }
+      [data-testid="stSidebar"] [data-testid="stExpander"] summary{
+          background:#d8e4f7 !important; color:#163b68 !important;
+          padding:.52rem .65rem !important; font-weight:700 !important; }
+      [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover{
+          background:#c6d8f2 !important; }
+      [data-testid="stSidebar"] [data-testid="stExpander"] summary svg{
+          color:#163b68 !important; }
+      [data-testid="stSidebar"] [data-testid="stExpander"] > div{
+          background:#eef4fd !important; padding:.15rem .3rem .3rem !important; }
+      [data-testid="stSidebar"] .stExpander .stButton>button{ background:transparent !important;
           border:none !important; border-left:3px solid transparent !important; box-shadow:none !important;
-          border-radius:8px; justify-content:flex-start !important; text-align:left !important;
-          padding:.38rem .55rem !important; font-weight:600; transition:all .12s ease; }
+          border-radius:5px; justify-content:flex-start !important; text-align:left !important;
+          padding:.32rem .45rem !important; font-weight:600; transition:all .12s ease; }
       [data-testid="stSidebar"] .stButton>button *{ color:#334155 !important; text-align:left !important;
           justify-content:flex-start !important; white-space:normal; overflow-wrap:anywhere; }
       [data-testid="stSidebar"] .stButton>button [data-testid="stMarkdownContainer"]{
           width:100% !important; text-align:left !important; }
       [data-testid="stSidebar"] .stButton>button p{ text-align:left !important; width:100%; margin:0; }
-      [data-testid="stSidebar"] .stButton>button:hover{ background:rgba(31,111,235,.08) !important;
+      [data-testid="stSidebar"] .stExpander .stButton>button:hover{ background:rgba(31,111,235,.10) !important;
           transform:none !important; }
-      [data-testid="stSidebar"] .stButton>button:hover *{ color:var(--accent) !important; }
-      [data-testid="stSidebar"] .stButton>button[kind="primary"]{ background:rgba(31,111,235,.12) !important;
+      [data-testid="stSidebar"] .stExpander .stButton>button:hover *{ color:var(--accent) !important; }
+      [data-testid="stSidebar"] .stExpander .stButton>button[kind="primary"]{ background:#2f6fca !important;
           border-left:3px solid var(--accent) !important; }
-      [data-testid="stSidebar"] .stButton>button[kind="primary"] *{ color:var(--accent) !important; font-weight:700; }
+      [data-testid="stSidebar"] .stExpander .stButton>button[kind="primary"] *{ color:#fff !important; font-weight:700; }
       /* Auto-refresh selectbox: white field with dark text */
       [data-testid="stSidebar"] [data-baseweb="select"]>div{ background:#fff !important; border-radius:8px; }
       [data-testid="stSidebar"] [data-baseweb="select"] div,
@@ -902,25 +914,19 @@ metrics = ([t for t in tabs if t["function"] == st.session_state.func]
            if st.session_state.func else [])
 
 # --------------------------------------------------------------------------- #
-# Sidebar navigation: Functions, then Metrics for the chosen function
+# Sidebar navigation: each function is a dropdown containing its metrics
 # --------------------------------------------------------------------------- #
 with nav_ph:
-    st.markdown("<div class='sec-label'>Function</div>", unsafe_allow_html=True)
     for f in functions:
-        if st.button(f, key=f"fn_{f}", use_container_width=True,
-                     type="primary" if st.session_state.func == f else "secondary"):
-            st.session_state.func = f
-            st.session_state.metric = None
-            st.rerun()
-    if st.session_state.func:
-        st.markdown(f"<div class='sec-label'>{st.session_state.func} metrics</div>",
-                    unsafe_allow_html=True)
-        for t in metrics:
-            active = st.session_state.metric == t["title"]
-            if st.button(t["metric"], key=f"mt_{t['title']}", use_container_width=True,
-                         type="primary" if active else "secondary"):
-                st.session_state.metric = t["title"]
-                st.rerun()
+        function_metrics = [t for t in tabs if t["function"] == f]
+        with st.expander(f, expanded=st.session_state.func == f):
+            for t in function_metrics:
+                active = st.session_state.metric == t["title"]
+                if st.button(t["metric"], key=f"mt_{t['title']}", use_container_width=True,
+                             type="primary" if active else "secondary"):
+                    st.session_state.func = f
+                    st.session_state.metric = t["title"]
+                    st.rerun()
 
 # --------------------------------------------------------------------------- #
 # Banner + main content (full-width table)
