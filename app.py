@@ -989,6 +989,7 @@ metrics = ([t for t in tabs if t["function"] == st.session_state.func]
 # Sidebar navigation: each function is a dropdown containing its metrics
 # --------------------------------------------------------------------------- #
 with nav_ph:
+    st.markdown("<div class='sec-label'>Function</div>", unsafe_allow_html=True)
     for f in functions:
         function_metrics = [t for t in tabs if t["function"] == f]
         with st.expander(f, expanded=st.session_state.func == f):
