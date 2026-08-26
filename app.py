@@ -71,7 +71,17 @@ function pinDashboardHeader(){
   if(block.__headerSpacer) block.__headerSpacer.style.height = h + 'px';
   doc.documentElement.style.setProperty('--dash-header-h', h + 'px');
 }
-function runHeaderPin(){ pinDashboardHeader(); }
+function sizeTable(){
+  doc.querySelectorAll('.sheet-wrap').forEach(w=>{
+    const wtop = w.getBoundingClientRect().top;
+    const avail = Math.round(Math.max(220, (pwin.innerHeight || 800) - wtop - 2));
+    doc.documentElement.style.setProperty('--table-offset', Math.round(wtop + 2) + 'px');
+    w.style.height = avail + 'px';
+    w.style.maxHeight = avail + 'px';
+    w.style.minHeight = avail + 'px';
+  });
+}
+function runHeaderPin(){ pinDashboardHeader(); sizeTable(); }
 runHeaderPin();
 if(pwin.requestAnimationFrame) pwin.requestAnimationFrame(runHeaderPin);
 [100, 350, 800, 1600].forEach(ms => setTimeout(runHeaderPin, ms));
@@ -121,15 +131,15 @@ function pinDashboardHeader(){
   doc.documentElement.style.setProperty('--dash-header-h', h + 'px');
 }
 function sizeTable(){
-  // The table box fills down to the window bottom so there is NO empty space below
-  // it (short tables just show empty rows inside the box). The dashboard header is
-  // pinned to the viewport; only the table body scrolls inside the sheet box.
+  // Fill the table box to the bottom of the viewport so more rows stay visible.
   pinDashboardHeader();
   doc.querySelectorAll('.sheet-wrap').forEach(w=>{
     const wtop = w.getBoundingClientRect().top;
-    const avail = Math.round(Math.max(180, (pwin.innerHeight || 800) - wtop - 4));
+    const avail = Math.round(Math.max(220, (pwin.innerHeight || 800) - wtop - 2));
+    doc.documentElement.style.setProperty('--table-offset', Math.round(wtop + 2) + 'px');
     w.style.height = avail + 'px';
     w.style.maxHeight = avail + 'px';
+    w.style.minHeight = avail + 'px';
   });
 }
 function makeColsResizable(){
@@ -357,7 +367,11 @@ st.markdown(
       [data-testid="stMain"], [data-testid="stMainBlockContainer"]{
           overflow:hidden !important; }
       .block-container,[data-testid="stMainBlockContainer"],[data-testid="stAppViewBlockContainer"]{
-          max-width:100% !important; padding:0 1.2rem 0 !important; }
+          max-width:100% !important; padding:0 1rem 0 !important; }
+      [data-testid="stMain"] [data-testid="stElementContainer"]{
+          margin-bottom:0 !important; padding-bottom:0 !important; }
+      [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]{
+          padding-top:0 !important; padding-bottom:0 !important; }
       /* Keep the Streamlit header (so the collapsed-sidebar EXPAND arrow keeps
          working) but make it transparent and hide only the toolbar / menu / status.
          The header does not cover the banner because it is transparent. */
@@ -382,11 +396,11 @@ st.markdown(
       /* Dashboard header is pinned to the viewport via pinDashboardHeader() in JS
          (Streamlit's scroll containers break CSS-only fixed/sticky headers). */
       .dashboard-header-bar{ box-sizing:border-box; background:var(--page-bg,#fff) !important;
-          padding:.35rem 3rem; border-bottom:1px solid var(--line,#e2e8f0);
+          padding:.2rem 2rem; border-bottom:1px solid var(--line,#e2e8f0);
           box-shadow:0 1px 3px rgba(15,23,42,.08); }
       .dashboard-header-spacer{ width:100%; flex-shrink:0; }
-      .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.15rem;
-          letter-spacing:.2px; color:var(--ink,#1f2d3d); white-space:nowrap; padding:.3rem 0; }
+      .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.05rem;
+          letter-spacing:.2px; color:var(--ink,#1f2d3d); white-space:nowrap; padding:.15rem 0; }
       .dashboard-header-marker{ display:none; }
       .dashboard-header-refresh button{ margin-top:.1rem !important; white-space:nowrap;
           border:1px solid #d7dee8 !important; box-shadow:none !important; }
@@ -433,18 +447,17 @@ st.markdown(
 
       .sec-label{ font-weight:700; color:#64748b; font-size:.75rem; letter-spacing:.8px;
           text-transform:uppercase; margin:.35rem 0 .15rem; }
-      .metric-title{ text-align:center; font-weight:800; font-size:1.1rem; color:var(--ink);
-          margin:.1rem 0 .05rem; animation:fadeInUp .4s ease both; }
-      .metric-title .accent{ display:block; width:54px; height:3px; border-radius:3px;
-          margin:.25rem auto 0; background:linear-gradient(90deg,var(--accent),#7aa7ff); }
-      .hint{ text-align:center; color:#7b8794; padding:1.2rem; font-size:1.05rem;
-          animation:fadeInUp .4s ease both; }
-      /* compact vertical rhythm in the main area so the table box gets the most
-         height (lets ~3 metric groups show at once) */
-      [data-testid="stMain"] [data-testid="stVerticalBlock"]{ gap:.4rem; }
-      [data-baseweb="tab-list"]{ margin-bottom:.1rem; }
-      button[data-baseweb="tab"]{ padding-top:.2rem; padding-bottom:.2rem; }
-      [data-baseweb="tab-panel"]{ padding-top:.1rem; }
+      .metric-title{ text-align:center; font-weight:800; font-size:.98rem; color:var(--ink);
+          margin:0; line-height:1.2; }
+      .metric-title .accent{ display:block; width:42px; height:2px; border-radius:2px;
+          margin:.1rem auto 0; background:linear-gradient(90deg,var(--accent),#7aa7ff); }
+      .hint{ text-align:center; color:#7b8794; padding:.8rem; font-size:1rem; }
+      /* compact vertical rhythm in the main area so the table box gets the most height */
+      [data-testid="stMain"] [data-testid="stVerticalBlock"]{ gap:.1rem; }
+      [data-baseweb="tab-list"]{ margin:0 !important; gap:.15rem; }
+      button[data-baseweb="tab"]{ padding:.1rem .45rem !important; min-height:0 !important; }
+      [data-baseweb="tab-panel"]{ padding-top:0 !important; }
+      [data-baseweb="tab-panel"] [data-testid="stVerticalBlock"]{ gap:.1rem !important; }
 
       /* Faint tiled diagonal "N K" watermark over the content. Subtle at 100% zoom,
          clearer when zoomed in; click-through. Low z-index so it sits above the table
@@ -480,14 +493,16 @@ st.markdown(
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(7) .stButton>button{animation-delay:.26s}
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(8) .stButton>button{animation-delay:.30s}
 
-      .sheet-wrap{ overflow:auto; max-height:calc(100vh - 12rem); border:1.5px solid var(--cell-border,#000);
-          border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); animation:fadeInUp .45s ease both; }
+      .sheet-wrap{ overflow:auto; height:calc(100vh - var(--table-offset, 9rem));
+          min-height:calc(100vh - var(--table-offset, 9rem));
+          max-height:calc(100vh - var(--table-offset, 9rem)); border:1.5px solid var(--cell-border,#000);
+          border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); }
       /* width:100% so few-column tables stretch to fill the box; min-width:max-content
          keeps wide tables their natural width (horizontal scroll) */
       table.sheet{ border-collapse:separate; border-spacing:0; width:100%; min-width:max-content;
           font-size:var(--fs,0.9rem); font-family:'Inter', system-ui, sans-serif; color:var(--cell-fg,#1f2d3d); }
       /* "all borders" on every cell of every table (theme-aware colour) */
-      table.sheet th, table.sheet td{ border:1px solid var(--cell-border,#000); padding:6px 11px; line-height:1.3;
+      table.sheet th, table.sheet td{ border:1px solid var(--cell-border,#000); padding:3px 8px; line-height:1.15;
           text-align:center; vertical-align:middle; white-space:nowrap; overflow-wrap:normal;
           min-width:var(--cw,6em); }
       table.sheet thead th{ position:sticky; top:0; z-index:2; font-weight:700; }
