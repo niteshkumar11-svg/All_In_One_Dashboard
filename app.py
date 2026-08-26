@@ -44,6 +44,47 @@ def inject_laser(enabled: bool) -> None:
     components.html(f"<script>{js}</script>", height=0)
 
 
+_HEADER_PIN_JS = r"""
+const doc = window.parent.document;
+const pwin = doc.defaultView || window.parent;
+function pinDashboardHeader(){
+  const marker = doc.querySelector('.dashboard-header-marker');
+  if(!marker) return;
+  const block = marker.closest('[data-testid="stVerticalBlock"]');
+  if(!block) return;
+  if(!block.__headerPinned){
+    block.__headerPinned = true;
+    block.classList.add('dashboard-header-bar');
+    const spacer = doc.createElement('div');
+    spacer.className = 'dashboard-header-spacer';
+    block.parentNode.insertBefore(spacer, block);
+    block.__headerSpacer = spacer;
+  }
+  const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+  const sidebarW = sidebar ? sidebar.getBoundingClientRect().width : 0;
+  block.style.position = 'fixed';
+  block.style.top = '0';
+  block.style.left = sidebarW + 'px';
+  block.style.right = '0';
+  block.style.zIndex = '901';
+  const h = block.offsetHeight || 48;
+  if(block.__headerSpacer) block.__headerSpacer.style.height = h + 'px';
+  doc.documentElement.style.setProperty('--dash-header-h', h + 'px');
+}
+function runHeaderPin(){ pinDashboardHeader(); }
+runHeaderPin();
+if(pwin.requestAnimationFrame) pwin.requestAnimationFrame(runHeaderPin);
+[100, 350, 800, 1600].forEach(ms => setTimeout(runHeaderPin, ms));
+if(doc.__headerPinR) pwin.removeEventListener('resize', doc.__headerPinR);
+doc.__headerPinR = () => setTimeout(runHeaderPin, 60);
+pwin.addEventListener('resize', doc.__headerPinR);
+"""
+
+
+def inject_header_pin() -> None:
+    components.html(f"<script>{_HEADER_PIN_JS}</script>", height=0)
+
+
 _LASER_JS = r"""
 const doc = window.parent.document;
 const ENABLED = __ENABLED__;
@@ -55,11 +96,35 @@ const pwin = doc.defaultView || window.parent;
 // Dynamic box height: each table box grows with its data down to the window
 // bottom, then scrolls inside; a short table keeps the box as tall as the data
 // (no empty space). Recomputed on every layout change via stackHeaders().
+function pinDashboardHeader(){
+  const marker = doc.querySelector('.dashboard-header-marker');
+  if(!marker) return;
+  const block = marker.closest('[data-testid="stVerticalBlock"]');
+  if(!block) return;
+  if(!block.__headerPinned){
+    block.__headerPinned = true;
+    block.classList.add('dashboard-header-bar');
+    const spacer = doc.createElement('div');
+    spacer.className = 'dashboard-header-spacer';
+    block.parentNode.insertBefore(spacer, block);
+    block.__headerSpacer = spacer;
+  }
+  const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+  const sidebarW = sidebar ? sidebar.getBoundingClientRect().width : 0;
+  block.style.position = 'fixed';
+  block.style.top = '0';
+  block.style.left = sidebarW + 'px';
+  block.style.right = '0';
+  block.style.zIndex = '901';
+  const h = block.offsetHeight || 48;
+  if(block.__headerSpacer) block.__headerSpacer.style.height = h + 'px';
+  doc.documentElement.style.setProperty('--dash-header-h', h + 'px');
+}
 function sizeTable(){
   // The table box fills down to the window bottom so there is NO empty space below
-  // it (short tables just show empty rows inside the box). A fixed margin keeps the
-  // height stable after the first paint; the page never scrolls, so the banner,
-  // metric title and sticky header stay put and only the body rows scroll inside.
+  // it (short tables just show empty rows inside the box). The dashboard header is
+  // pinned to the viewport; only the table body scrolls inside the sheet box.
+  pinDashboardHeader();
   doc.querySelectorAll('.sheet-wrap').forEach(w=>{
     const wtop = w.getBoundingClientRect().top;
     const avail = Math.round(Math.max(180, (pwin.innerHeight || 800) - wtop - 4));
@@ -290,8 +355,12 @@ st.markdown(
       :root { --accent:#1f6feb; --accent2:#4f46e5; --ink:#102a4a; --line:#dbe2ea; }
       html, body, [data-testid="stAppViewContainer"] { font-family:'Inter', system-ui, sans-serif; }
 
+      html, body, [data-testid="stAppViewContainer"]{
+          overflow:hidden !important; height:100vh !important; }
+      [data-testid="stMain"], [data-testid="stMainBlockContainer"]{
+          overflow:hidden !important; }
       .block-container,[data-testid="stMainBlockContainer"],[data-testid="stAppViewBlockContainer"]{
-          max-width:100% !important; padding:3.7rem 1.2rem 0 !important; }
+          max-width:100% !important; padding:0 1.2rem 0 !important; }
       /* Keep the Streamlit header (so the collapsed-sidebar EXPAND arrow keeps
          working) but make it transparent and hide only the toolbar / menu / status.
          The header does not cover the banner because it is transparent. */
@@ -313,14 +382,14 @@ st.markdown(
       [data-testid="stMain"] [data-testid="stElementContainer"]:has(style){ display:none !important; }
       [data-testid="stMain"] [data-testid="stElementContainer"]:has(iframe[title*="autorefresh"]){
           height:0 !important; min-height:0 !important; margin:0 !important; overflow:hidden !important; }
-      /* Keep the dashboard title and manual refresh action visible while the
-         metric table scrolls. */
-      [data-testid="stMain"] [data-testid="stVerticalBlock"]:has(.dashboard-header-marker){
-          position:fixed; top:0; left:0; right:0; z-index:900; height:3rem;
-          box-sizing:border-box; background:#fff; padding:.35rem 3rem;
-          border-bottom:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(15,23,42,.08); }
+      /* Dashboard header is pinned to the viewport via pinDashboardHeader() in JS
+         (Streamlit's scroll containers break CSS-only fixed/sticky headers). */
+      .dashboard-header-bar{ box-sizing:border-box; background:var(--page-bg,#fff) !important;
+          padding:.35rem 3rem; border-bottom:1px solid var(--line,#e2e8f0);
+          box-shadow:0 1px 3px rgba(15,23,42,.08); }
+      .dashboard-header-spacer{ width:100%; flex-shrink:0; }
       .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.15rem;
-          letter-spacing:.2px; color:#1f2d3d; white-space:nowrap; padding:.3rem 0; }
+          letter-spacing:.2px; color:var(--ink,#1f2d3d); white-space:nowrap; padding:.3rem 0; }
       .dashboard-header-marker{ display:none; }
       .dashboard-header-refresh button{ margin-top:.1rem !important; white-space:nowrap;
           border:1px solid #d7dee8 !important; box-shadow:none !important; }
@@ -877,6 +946,7 @@ with st.container():
     with header_title:
         st.markdown("<div class='dashboard-header-title'>📦 BJOC - ALL IN ONE DASHBOARD</div>",
                     unsafe_allow_html=True)
+inject_header_pin()
 
 
 # --------------------------------------------------------------------------- #
