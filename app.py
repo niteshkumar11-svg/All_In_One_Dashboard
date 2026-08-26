@@ -291,7 +291,7 @@ st.markdown(
       html, body, [data-testid="stAppViewContainer"] { font-family:'Inter', system-ui, sans-serif; }
 
       .block-container,[data-testid="stMainBlockContainer"],[data-testid="stAppViewBlockContainer"]{
-          max-width:100% !important; padding:0.7rem 1.2rem 0 !important; }
+          max-width:100% !important; padding:3.7rem 1.2rem 0 !important; }
       /* Keep the Streamlit header (so the collapsed-sidebar EXPAND arrow keeps
          working) but make it transparent and hide only the toolbar / menu / status.
          The header does not cover the banner because it is transparent. */
@@ -316,13 +316,14 @@ st.markdown(
       /* Keep the dashboard title and manual refresh action visible while the
          metric table scrolls. */
       [data-testid="stMain"] [data-testid="stVerticalBlock"]:has(.dashboard-header-marker){
-          position:sticky; top:0; z-index:20; background:var(--page-bg,#e9eef5);
-          padding:.35rem 0 .45rem; border-bottom:1px solid var(--line,#dbe2ea); }
-      .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.2rem;
-          letter-spacing:.3px; color:var(--ink,#102a4a); white-space:nowrap;
-          padding:.3rem 0; }
+          position:fixed; top:0; left:0; right:0; z-index:900; height:3rem;
+          box-sizing:border-box; background:#fff; padding:.35rem 3rem;
+          border-bottom:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(15,23,42,.08); }
+      .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.15rem;
+          letter-spacing:.2px; color:#1f2d3d; white-space:nowrap; padding:.3rem 0; }
       .dashboard-header-marker{ display:none; }
-      .dashboard-header-refresh button{ margin-top:.1rem !important; }
+      .dashboard-header-refresh button{ margin-top:.1rem !important; white-space:nowrap;
+          border:1px solid #d7dee8 !important; box-shadow:none !important; }
       /* Sidebar: a slim, LIGHT panel with dark-text menu items. Forced permanently
          OPEN (override any collapse: width / transform / margin) so it can never
          disappear with no way to reopen it. */
