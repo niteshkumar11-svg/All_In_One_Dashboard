@@ -342,11 +342,8 @@ st.set_page_config(
 
 HDR_LABEL = "#a4c2f4"
 
-# Appearance toggle. Read here (before the theme CSS) so the styling matches; the
-# sidebar toggle widget shares the same session_state key, so a change is already
-# reflected in session_state at the top of the next rerun (no one-frame lag).
-st.session_state.setdefault("dark_mode", False)
-DARK = bool(st.session_state.dark_mode)
+# Light theme only (dark-mode toggle removed from sidebar).
+DARK = False
 
 st.markdown(
     """
@@ -433,11 +430,6 @@ st.markdown(
       [data-testid="stSidebar"] .stExpander .stButton>button[kind="primary"]{ background:#2f6fca !important;
           border-left:3px solid var(--accent) !important; }
       [data-testid="stSidebar"] .stExpander .stButton>button[kind="primary"] *{ color:#fff !important; font-weight:700; }
-      /* Auto-refresh selectbox: white field with dark text */
-      [data-testid="stSidebar"] [data-baseweb="select"]>div{ background:#fff !important; border-radius:8px; }
-      [data-testid="stSidebar"] [data-baseweb="select"] div,
-      [data-testid="stSidebar"] [data-baseweb="select"] span,
-      [data-testid="stSidebar"] [data-baseweb="select"] input{ color:#1f2d3d !important; }
 
       .sec-label{ font-weight:700; color:#64748b; font-size:.75rem; letter-spacing:.8px;
           text-transform:uppercase; margin:.35rem 0 .15rem; }
@@ -957,23 +949,13 @@ if not _has_sa():
              "`.streamlit/secrets.toml` (see README).")
     st.stop()
 
-st.sidebar.markdown("##### ⚙️ Controls")
-_RF = {"Off": 0, "30 sec": 30, "1 min": 60, "5 min": 300}
-rf_choice = st.sidebar.selectbox("⏱️ Auto-refresh", list(_RF), index=2)
-rf_sec = _RF[rf_choice]
-tick = 0
-if rf_sec and _HAS_AUTOREFRESH:
-    tick = st_autorefresh(interval=rf_sec * 1000, key="auto_rf")
-
-# Light/Dark appearance (read at the top of the script as DARK; toggling reruns)
-st.sidebar.toggle("🌙 Dark mode", key="dark_mode",
-                  help="Switch the whole dashboard between light and dark.")
-
-st.sidebar.divider()
-# functions + metrics navigation (kept below the refresh controls)
 nav_ph = st.sidebar.container()
 st.sidebar.divider()
 font_rem = st.sidebar.slider("🔠 Table font size", 0.6, 1.5, 0.9, 0.05)
+# Auto-refresh every 2 minutes (fixed; no sidebar control).
+tick = 0
+if _HAS_AUTOREFRESH:
+    tick = st_autorefresh(interval=120_000, key="auto_rf")
 # Column widths are now resized directly IN the table (Excel-style: drag a column
 # header's right edge). These are just the starting widths.
 cell_w, label_w = 6.0, 9.0
