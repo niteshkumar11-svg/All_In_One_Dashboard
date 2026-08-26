@@ -313,6 +313,16 @@ st.markdown(
       [data-testid="stMain"] [data-testid="stElementContainer"]:has(style){ display:none !important; }
       [data-testid="stMain"] [data-testid="stElementContainer"]:has(iframe[title*="autorefresh"]){
           height:0 !important; min-height:0 !important; margin:0 !important; overflow:hidden !important; }
+      /* Keep the dashboard title and manual refresh action visible while the
+         metric table scrolls. */
+      [data-testid="stMain"] [data-testid="stVerticalBlock"]:has(.dashboard-header-marker){
+          position:sticky; top:0; z-index:20; background:var(--page-bg,#e9eef5);
+          padding:.35rem 0 .45rem; border-bottom:1px solid var(--line,#dbe2ea); }
+      .dashboard-header-title{ text-align:center; font-weight:800; font-size:1.2rem;
+          letter-spacing:.3px; color:var(--ink,#102a4a); white-space:nowrap;
+          padding:.3rem 0; }
+      .dashboard-header-marker{ display:none; }
+      .dashboard-header-refresh button{ margin-top:.1rem !important; }
       /* Sidebar: a slim, LIGHT panel with dark-text menu items. Forced permanently
          OPEN (override any collapse: width / transform / margin) so it can never
          disappear with no way to reopen it. */
@@ -359,10 +369,6 @@ st.markdown(
       [data-testid="stSidebar"] [data-baseweb="select"] span,
       [data-testid="stSidebar"] [data-baseweb="select"] input{ color:#1f2d3d !important; }
 
-      .app-banner{ text-align:center; font-weight:800; font-size:1.45rem; letter-spacing:1.5px;
-          color:#fff; padding:.42rem 1rem; border-radius:12px; margin:0 0 .3rem;
-          background:linear-gradient(135deg,#3b5169 0%,#2b3d4f 100%);
-          box-shadow:0 4px 14px rgba(31,45,61,.28); }
       .sec-label{ font-weight:700; color:#64748b; font-size:.75rem; letter-spacing:.8px;
           text-transform:uppercase; margin:.35rem 0 .15rem; }
       .metric-title{ text-align:center; font-weight:800; font-size:1.1rem; color:var(--ink);
@@ -855,6 +861,24 @@ def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
 
 
 # --------------------------------------------------------------------------- #
+# Sticky dashboard header
+# --------------------------------------------------------------------------- #
+with st.container():
+    st.markdown("<div class='dashboard-header-marker'></div>", unsafe_allow_html=True)
+    header_left, header_title, header_right = st.columns([1, 3, 1])
+    with header_left:
+        st.markdown("<div class='dashboard-header-refresh'>", unsafe_allow_html=True)
+        if st.button("🔄 Refresh Data", key="refresh_btn"):
+            get_meta.clear()
+            get_grid.clear()
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    with header_title:
+        st.markdown("<div class='dashboard-header-title'>📦 BJOC - ALL IN ONE DASHBOARD</div>",
+                    unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------- #
 # Sidebar
 # --------------------------------------------------------------------------- #
 if not _has_sa():
@@ -863,11 +887,6 @@ if not _has_sa():
     st.stop()
 
 st.sidebar.markdown("##### ⚙️ Controls")
-if st.sidebar.button("🔄 Refresh now", key="refresh_btn", use_container_width=True):
-    get_meta.clear()
-    get_grid.clear()
-    st.rerun()
-
 _RF = {"Off": 0, "30 sec": 30, "1 min": 60, "5 min": 300}
 rf_choice = st.sidebar.selectbox("⏱️ Auto-refresh", list(_RF), index=2)
 rf_sec = _RF[rf_choice]
@@ -929,11 +948,8 @@ with nav_ph:
                     st.rerun()
 
 # --------------------------------------------------------------------------- #
-# Banner + main content (full-width table)
+# Main content (full-width table)
 # --------------------------------------------------------------------------- #
-st.markdown("<div class='app-banner'>BJOC&nbsp;-&nbsp;ALL IN ONE DASHBOARD</div>",
-            unsafe_allow_html=True)
-
 with st.container():
     sel = st.session_state.metric
     if st.session_state.func is None:
