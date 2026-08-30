@@ -186,7 +186,8 @@ function makeColsResizable(){
       for(const row of grid){ const cell=row[i]; if(cell && cell.__sc===i && cell.__cs===1){ w=Math.round(cell.getBoundingClientRect().width); break; } }
       colW[i]= w || (frozenSet.has(i)?130:80);
     }
-    const sig='cw:'+[...thead.rows[thead.rows.length-1].cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
+    // Version the storage key so users do not retain the old cramped label width.
+    const sig='cw:v2:'+[...thead.rows[thead.rows.length-1].cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
 
     function applyFrozen(){
       if(!frozenCells.length) return;
@@ -971,9 +972,10 @@ font_rem = st.sidebar.slider("🔠 Table font size", 0.6, 1.5, 0.9, 0.05)
 tick = 0
 if _HAS_AUTOREFRESH:
     tick = st_autorefresh(interval=120_000, key="auto_rf")
-# Column widths are now resized directly IN the table (Excel-style: drag a column
-# header's right edge). These are just the starting widths.
-cell_w, label_w = 6.0, 9.0
+# Column widths are resized directly IN the table (Excel-style: drag a column
+# header's right edge). Keep the frozen label column wide enough for metric names
+# before the user makes a custom adjustment.
+cell_w, label_w = 6.0, 12.5
 
 # --------------------------------------------------------------------------- #
 # Catalogue
