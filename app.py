@@ -23,6 +23,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import data_loader as dl
+from live_subtotal import find_subtotal_row, live_subtotal
 
 # Laser/highlight mode: injected into the parent page so it works on the table
 # rendered by st.markdown. Hover = laser-point a cell; double-click then move the
@@ -783,12 +784,7 @@ _GEO_NAMES = {"region", "state", "zone"}
 def _flat_controls(values):
     """True if a flat table has a Subtotal/Total row near the TOP (first column),
     so the Sort/Filter + live-subtotal renderer should handle it."""
-    for r in range(min(5, len(values))):
-        row = values[r] if r < len(values) else []
-        first = str(row[0]).strip().lower() if row else ""
-        if first.startswith("subtotal") or first.startswith("grand total") or first == "total":
-            return True
-    return False
+    return find_subtotal_row(values, max_row=min(4, len(values) - 1)) is not None
 
 
 def render_fm(values, colors, merges, fr, fc, kp):
@@ -1133,20 +1129,35 @@ with st.container():
             show_cols(cols, frz)
     elif date_rows:
         # ---- dates down the first column: slice ROWS (latest first) ----
+        # Subtotal above the dates is a sheet-wide figure; recompute it from the
+        # rows actually shown so Overall / Week / Month each reflect their data.
+        first_date_r = date_rows[0][0]
+        sub_r = find_subtotal_row(values, max_row=first_date_r - 1)
         head = list(range(hdr_rows))
+        if sub_r is not None and sub_r not in head:
+            head = sorted(set(head) | {sub_r})
+        all_date_idx = [r for r, _ in date_rows]
         desc = sorted(date_rows, key=lambda x: x[1], reverse=True)
+
+        def show_date_rows(keep_data):
+            wv = live_subtotal(values, sub_r, keep_data, all_data_rows=all_date_idx)
+            v, c, m = slice_rows(wv, colors, merges, head + keep_data)
+            st.markdown(render_table(v, c, frozen=(fr, fc), merges=m,
+                                     font_rem=font_rem, cell_w=cell_w, label_w=label_w),
+                        unsafe_allow_html=True)
+
         t_over, t_week, t_month = st.tabs(["Overall (last 4 days)", "Week", "Month"])
         with t_over:
-            show_rows(head + [r for r, _ in desc[:4]])
+            show_date_rows([r for r, _ in desc[:4]])
         with t_week:
             weeks = sorted({_iso(d) for _, d in date_rows}, reverse=True)
             wk = st.selectbox("Week", weeks, key="wk_sel_r", format_func=lambda k: f"Week {k[1]}, {k[0]}")
-            show_rows(head + [r for r, d in desc if _iso(d) == wk])
+            show_date_rows([r for r, d in desc if _iso(d) == wk])
         with t_month:
             months = sorted({(d.year, d.month) for _, d in date_rows}, reverse=True)
             mo = st.selectbox("Month", months, key="mo_sel_r",
                               format_func=lambda k: pd.Timestamp(year=k[0], month=k[1], day=1).strftime("%B %Y"))
-            show_rows(head + [r for r, d in desc if (d.year, d.month) == mo])
+            show_date_rows([r for r, d in desc if (d.year, d.month) == mo])
     elif _flat_controls(values):
         # any flat table with a top subtotal or region/state column gets the same
         # Sort/Filter + live-subtotal treatment as FM
