@@ -499,7 +499,8 @@ st.markdown(
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(7) .stButton>button{animation-delay:.26s}
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(8) .stButton>button{animation-delay:.30s}
 
-      .sheet-wrap{ position:relative; z-index:1; overflow:auto; height:calc(100vh - var(--table-offset, 9rem));
+      .sheet-wrap{ position:relative; z-index:1; margin-top:1rem; overflow:auto;
+          height:calc(100vh - var(--table-offset, 9rem));
           min-height:calc(100vh - var(--table-offset, 9rem));
           max-height:calc(100vh - var(--table-offset, 9rem)); border:1.5px solid var(--cell-border,#000);
           border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); }
