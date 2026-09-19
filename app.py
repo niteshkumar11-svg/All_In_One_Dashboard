@@ -448,8 +448,13 @@ st.markdown(
 
       .sec-label{ font-weight:700; color:#64748b; font-size:.75rem; letter-spacing:.8px;
           text-transform:uppercase; margin:.35rem 0 .15rem; }
-      .metric-title{ text-align:center; font-weight:800; font-size:.98rem; color:var(--ink);
-          margin:0; line-height:1.2; }
+      /* Reserve a real line box between the metric name and the table. Without
+         this, compact Streamlit blocks let the sticky table header paint over
+         short metric titles such as "Open STN". */
+      .metric-title{ position:relative; z-index:3; box-sizing:border-box;
+          min-height:2.35rem; padding:.2rem .5rem .45rem; text-align:center;
+          font-weight:800; font-size:.98rem; color:var(--ink);
+          margin:0 0 .25rem; line-height:1.2; background:var(--page-bg,#fff); }
       .metric-title .accent{ display:block; width:42px; height:2px; border-radius:2px;
           margin:.1rem auto 0; background:linear-gradient(90deg,var(--accent),#7aa7ff); }
       .hint{ text-align:center; color:#7b8794; padding:.8rem; font-size:1rem; }
@@ -494,7 +499,7 @@ st.markdown(
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(7) .stButton>button{animation-delay:.26s}
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(8) .stButton>button{animation-delay:.30s}
 
-      .sheet-wrap{ overflow:auto; height:calc(100vh - var(--table-offset, 9rem));
+      .sheet-wrap{ position:relative; z-index:1; overflow:auto; height:calc(100vh - var(--table-offset, 9rem));
           min-height:calc(100vh - var(--table-offset, 9rem));
           max-height:calc(100vh - var(--table-offset, 9rem)); border:1.5px solid var(--cell-border,#000);
           border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); }
