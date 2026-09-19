@@ -184,17 +184,31 @@ function makeColsResizable(){
     const colW=[];
     for(let i=0;i<ncol;i++){ let w=0;
       for(const row of grid){ const cell=row[i]; if(cell && cell.__sc===i && cell.__cs===1){ w=Math.round(cell.getBoundingClientRect().width); break; } }
-      colW[i]= w || (frozenSet.has(i)?130:80);
+      colW[i]= w || (frozenSet.has(i)?180:80);
     }
+    // Grow frozen label columns to fit their text so names like MotherHub_BBS are
+    // never clipped behind the next sticky column.
+    function fitFrozenCols(){
+      for(let i=0;i<frozenCols;i++){
+        let need=frozenSet.has(i)?180:0;
+        for(const row of grid){
+          const cell=row[i]; if(!cell || cell.__sc!==i) continue;
+          const raw=Math.ceil((cell.scrollWidth||cell.offsetWidth||0)/Math.max(1,cell.__cs))+14;
+          need=Math.max(need, raw);
+        }
+        colW[i]=Math.max(colW[i]||0, need);
+      }
+    }
+    fitFrozenCols();
     // Version the storage key so users do not retain the old cramped label width.
-    const sig='cw:v2:'+[...thead.rows[thead.rows.length-1].cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
+    const sig='cw:v3:'+[...thead.rows[thead.rows.length-1].cells].map(x=>(x.textContent||'').trim()).join('|').slice(0,120);
 
     function applyFrozen(){
       if(!frozenCells.length) return;
       const leftOf=[]; let acc=0; for(let i=0;i<frozenCols;i++){ leftOf[i]=acc; acc+=colW[i]; }
       for(const cell of frozenCells){ let wsum=0; for(let k=0;k<cell.__cs;k++) wsum+=colW[cell.__sc+k]||0;
         cell.style.left=(leftOf[cell.__sc]||0)+'px';
-        cell.style.width=wsum+'px'; cell.style.minWidth=wsum+'px'; cell.style.maxWidth=wsum+'px'; }
+        cell.style.width=wsum+'px'; cell.style.minWidth=wsum+'px'; }
     }
     const applyData=i=>{ cols[i].style.width=colW[i]+'px'; };
 
@@ -212,7 +226,7 @@ function makeColsResizable(){
         e.preventDefault(); e.stopPropagation();
         const startX=e.clientX, startW=colW[colIdx], frozen=frozenSet.has(colIdx);
         doc.body.classList.add('col-resizing');
-        const move=ev=>{ colW[colIdx]=Math.max(36, startW+(ev.clientX-startX)); if(frozen) applyFrozen(); else applyData(colIdx); };
+        const move=ev=>{ const minW=frozen?120:36; colW[colIdx]=Math.max(minW, startW+(ev.clientX-startX)); if(frozen) applyFrozen(); else applyData(colIdx); };
         const up=()=>{ doc.removeEventListener('mousemove',move,true); doc.removeEventListener('mouseup',up,true);
           doc.body.classList.remove('col-resizing');
           try{ sessionStorage.setItem(sig+'#'+colIdx, colW[colIdx]); }catch(e){} };
@@ -448,13 +462,15 @@ st.markdown(
 
       .sec-label{ font-weight:700; color:#64748b; font-size:.75rem; letter-spacing:.8px;
           text-transform:uppercase; margin:.35rem 0 .15rem; }
-      /* Reserve a real line box between the metric name and the table. Without
-         this, compact Streamlit blocks let the sticky table header paint over
-         short metric titles such as "Open STN". */
-      .metric-title{ position:relative; z-index:3; box-sizing:border-box;
-          min-height:2.35rem; padding:.2rem .5rem .45rem; text-align:center;
+      /* Keep the selected metric name above sticky table headers. Streamlit's
+         tight vertical blocks let the table paint over short titles otherwise. */
+      [data-testid="stElementContainer"]:has(.metric-title){
+          position:relative; z-index:12; margin-bottom:.85rem !important;
+          padding-bottom:.35rem; background:var(--page-bg,#fff); }
+      .metric-title{ position:relative; z-index:12; box-sizing:border-box;
+          min-height:2.5rem; padding:.35rem .5rem .55rem; text-align:center;
           font-weight:800; font-size:.98rem; color:var(--ink);
-          margin:0 0 .25rem; line-height:1.2; background:var(--page-bg,#fff); }
+          margin:0; line-height:1.25; background:var(--page-bg,#fff); }
       .metric-title .accent{ display:block; width:42px; height:2px; border-radius:2px;
           margin:.1rem auto 0; background:linear-gradient(90deg,var(--accent),#7aa7ff); }
       .hint{ text-align:center; color:#7b8794; padding:.8rem; font-size:1rem; }
@@ -499,7 +515,10 @@ st.markdown(
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(7) .stButton>button{animation-delay:.26s}
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(8) .stButton>button{animation-delay:.30s}
 
-      .sheet-wrap{ position:relative; z-index:1; margin-top:1rem; overflow:auto;
+      table.sheet .sheet-frozen{ text-align:left !important; box-shadow:2px 0 4px rgba(15,23,42,.08); }
+      table.sheet thead .sheet-frozen{ z-index:6 !important; }
+      table.sheet tbody .sheet-frozen{ z-index:3 !important; }
+      .sheet-wrap{ position:relative; z-index:1; margin-top:.35rem; overflow:auto;
           height:calc(100vh - var(--table-offset, 9rem));
           min-height:calc(100vh - var(--table-offset, 9rem));
           max-height:calc(100vh - var(--table-offset, 9rem)); border:1.5px solid var(--cell-border,#000);
@@ -594,11 +613,23 @@ def _esc(s) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _label_width(values, frozen_cols: int, base: float = 12.5) -> float:
+    """Wide enough for the longest frozen-column label in this table."""
+    if frozen_cols <= 0:
+        return base
+    longest = 0
+    for row in values:
+        for c in range(min(frozen_cols, len(row))):
+            longest = max(longest, len(str(row[c]).strip()))
+    return max(base, min(26.0, longest * 0.55 + 3.0))
+
+
 def _frozen(pos: int, frozen_cols: int, is_header: bool, bg: str, w: float) -> str:
     if pos >= frozen_cols:
         return ""
-    s = (f"position:sticky;left:{round(pos * w, 2)}em;width:{w}em;min-width:{w}em;max-width:{w}em;"
-         f"white-space:normal;overflow-wrap:anywhere;z-index:{4 if is_header else 1};")
+    z = 6 if is_header else 3
+    s = (f"position:sticky;left:{round(pos * w, 2)}em;width:{w}em;min-width:{w}em;"
+         f"white-space:normal;overflow-wrap:anywhere;text-align:left;z-index:{z};")
     if not bg:
         s += "background-color:var(--cell-bg,#ffffff);color:var(--cell-fg,#1f2d3d);"
     return s
@@ -701,6 +732,7 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
     fr, fc = frozen
     fc = max(0, min(fc, ncols))
     fr = max(0, fr)
+    lw = _label_width(grid, fc, label_w)
 
     anchor, covered = {}, set()
     for sr, er, sc, ec in (merges or []):
@@ -742,10 +774,12 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
             ev = _esc(val)
             if len(str(val).strip()) > 30:   # large text -> wrap to a readable width
                 ev = f'<div class="wrapcell">{ev}</div>'
-            style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, label_w)
+            frozen = c < fc
+            style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, lw)
+            cls = ' class="sheet-frozen"' if frozen else ""
             # bold header cells, plus any cell the sheet itself marks bold
             wt = "font-weight:700;" if (tag == "th" or bold) else ""
-            cells.append(f'<{tag}{span} style="{style}{wt}">{ev}</{tag}>')
+            cells.append(f'<{tag}{span}{cls} style="{style}{wt}">{ev}</{tag}>')
         return "<tr>" + "".join(cells) + "</tr>"
 
     sattr = ' data-sortable="1"' if sortable else ''
