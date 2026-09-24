@@ -525,7 +525,7 @@ st.markdown(
           border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); }
       /* Use intrinsic widths so cells follow their content instead of expanding
          frozen columns to fill the viewport. */
-      table.sheet{ border-collapse:separate; border-spacing:0; width:max-content; min-width:max-content;
+      table.sheet{ border-collapse:separate; border-spacing:0; width:100%; min-width:max-content;
           font-size:var(--fs,0.9rem); font-family:'Inter', system-ui, sans-serif; color:var(--cell-fg,#1f2d3d); }
       /* "all borders" on every cell of every table (theme-aware colour) */
       table.sheet th, table.sheet td{ border:1px solid var(--cell-border,#000); padding:3px 8px; line-height:1.15;
@@ -621,7 +621,7 @@ def _frozen_widths(values, frozen_cols: int, base: float = 3.0) -> list[float]:
             (len(str(row[c]).strip()) for row in values if c < len(row)),
             default=0,
         )
-        widths.append(max(base, min(30.0, longest * 0.55 + 3.0)))
+        widths.append(max(base, min(26.0, longest * 0.48 + 2.4)))
     return widths
 
 
