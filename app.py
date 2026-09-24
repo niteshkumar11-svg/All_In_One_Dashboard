@@ -186,17 +186,17 @@ function makeColsResizable(){
       for(const row of grid){ const cell=row[i]; if(cell && cell.__sc===i && cell.__cs===1){ w=Math.round(cell.getBoundingClientRect().width); break; } }
       colW[i]= w || (frozenSet.has(i)?180:80);
     }
-    // Grow frozen label columns to fit their text so names like MotherHub_BBS are
-    // never clipped behind the next sticky column.
+    // Keep frozen columns at their natural content width. The renderer supplies
+    // per-column widths; do not impose a shared minimum that expands short labels.
     function fitFrozenCols(){
       for(let i=0;i<frozenCols;i++){
-        let need=frozenSet.has(i)?180:0;
+        let need=0;
         for(const row of grid){
           const cell=row[i]; if(!cell || cell.__sc!==i) continue;
-          const raw=Math.ceil((cell.scrollWidth||cell.offsetWidth||0)/Math.max(1,cell.__cs))+14;
+          const raw=Math.ceil((cell.scrollWidth||cell.offsetWidth||0)/Math.max(1,cell.__cs));
           need=Math.max(need, raw);
         }
-        colW[i]=Math.max(colW[i]||0, need);
+        colW[i]=Math.max(36, need);
       }
     }
     fitFrozenCols();
@@ -515,7 +515,7 @@ st.markdown(
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(7) .stButton>button{animation-delay:.26s}
       [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(8) .stButton>button{animation-delay:.30s}
 
-      table.sheet .sheet-frozen{ text-align:left !important; box-shadow:2px 0 4px rgba(15,23,42,.08); }
+      table.sheet .sheet-frozen{ text-align:center !important; box-shadow:2px 0 4px rgba(15,23,42,.08); }
       table.sheet thead .sheet-frozen{ z-index:6 !important; }
       table.sheet tbody .sheet-frozen{ z-index:3 !important; }
       .sheet-wrap{ position:relative; z-index:1; margin-top:.35rem; overflow:auto;
@@ -523,14 +523,14 @@ st.markdown(
           min-height:calc(100vh - var(--table-offset, 9rem));
           max-height:calc(100vh - var(--table-offset, 9rem)); border:1.5px solid var(--cell-border,#000);
           border-radius:8px; box-shadow:0 1px 4px rgba(16,42,74,.08); }
-      /* width:100% so few-column tables stretch to fill the box; min-width:max-content
-         keeps wide tables their natural width (horizontal scroll) */
-      table.sheet{ border-collapse:separate; border-spacing:0; width:100%; min-width:max-content;
+      /* Use intrinsic widths so cells follow their content instead of expanding
+         frozen columns to fill the viewport. */
+      table.sheet{ border-collapse:separate; border-spacing:0; width:max-content; min-width:max-content;
           font-size:var(--fs,0.9rem); font-family:'Inter', system-ui, sans-serif; color:var(--cell-fg,#1f2d3d); }
       /* "all borders" on every cell of every table (theme-aware colour) */
       table.sheet th, table.sheet td{ border:1px solid var(--cell-border,#000); padding:3px 8px; line-height:1.15;
           text-align:center; vertical-align:middle; white-space:nowrap; overflow-wrap:normal;
-          min-width:var(--cw,6em); }
+          min-width:0; }
       table.sheet thead th{ position:sticky; top:0; z-index:2; font-weight:700; }
       /* sortable tables: header cells are clickable and show a sort arrow */
       table.sheet[data-sortable] thead th{ cursor:pointer; }
@@ -613,23 +613,27 @@ def _esc(s) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _label_width(values, frozen_cols: int, base: float = 12.5) -> float:
-    """Wide enough for the longest frozen-column label in this table."""
-    if frozen_cols <= 0:
-        return base
-    longest = 0
-    for row in values:
-        for c in range(min(frozen_cols, len(row))):
-            longest = max(longest, len(str(row[c]).strip()))
-    return max(base, min(26.0, longest * 0.55 + 3.0))
+def _frozen_widths(values, frozen_cols: int, base: float = 3.0) -> list[float]:
+    """Return compact, content-based widths for each frozen column."""
+    widths = []
+    for c in range(frozen_cols):
+        longest = max(
+            (len(str(row[c]).strip()) for row in values if c < len(row)),
+            default=0,
+        )
+        widths.append(max(base, min(30.0, longest * 0.55 + 3.0)))
+    return widths
 
 
-def _frozen(pos: int, frozen_cols: int, is_header: bool, bg: str, w: float) -> str:
+def _frozen(pos: int, frozen_cols: int, is_header: bool, bg: str,
+            widths: list[float]) -> str:
     if pos >= frozen_cols:
         return ""
     z = 6 if is_header else 3
-    s = (f"position:sticky;left:{round(pos * w, 2)}em;width:{w}em;min-width:{w}em;"
-         f"white-space:normal;overflow-wrap:anywhere;text-align:left;z-index:{z};")
+    left = sum(widths[:pos])
+    width = widths[pos]
+    s = (f"position:sticky;left:{round(left, 2)}em;width:{width}em;min-width:{width}em;"
+         f"white-space:normal;overflow-wrap:anywhere;text-align:center;z-index:{z};")
     if not bg:
         s += "background-color:var(--cell-bg,#ffffff);color:var(--cell-fg,#1f2d3d);"
     return s
@@ -707,7 +711,7 @@ def slice_cols(values, colors, merges, keep_cols):
 
 
 def render_table(values, colors, frozen=(0, 0), merges=None,
-                 font_rem: float = 0.9, cell_w: float = 6.0, label_w: float = 9.0,
+                 font_rem: float = 0.9, cell_w: float = 6.0, label_w: float = 3.0,
                  sortable: bool = False) -> str:
     grid = [list(r) for r in values]
     while grid and not any(str(c).strip() for c in grid[-1]):
@@ -732,7 +736,7 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
     fr, fc = frozen
     fc = max(0, min(fc, ncols))
     fr = max(0, fr)
-    lw = _label_width(grid, fc, label_w)
+    frozen_widths = _frozen_widths(grid, fc, label_w)
 
     anchor, covered = {}, set()
     for sr, er, sc, ec in (merges or []):
@@ -775,7 +779,7 @@ def render_table(values, colors, frozen=(0, 0), merges=None,
             if len(str(val).strip()) > 30:   # large text -> wrap to a readable width
                 ev = f'<div class="wrapcell">{ev}</div>'
             frozen = c < fc
-            style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, lw)
+            style = _bg_style(bg) + _frozen(c, fc, tag == "th", bg, frozen_widths)
             cls = ' class="sheet-frozen"' if frozen else ""
             # bold header cells, plus any cell the sheet itself marks bold
             wt = "font-weight:700;" if (tag == "th" or bold) else ""
@@ -1013,9 +1017,8 @@ tick = 0
 if _HAS_AUTOREFRESH:
     tick = st_autorefresh(interval=120_000, key="auto_rf")
 # Column widths are resized directly IN the table (Excel-style: drag a column
-# header's right edge). Keep the frozen label column wide enough for metric names
-# before the user makes a custom adjustment.
-cell_w, label_w = 6.0, 12.5
+# header's right edge). Frozen columns start at compact content-based widths.
+cell_w, label_w = 3.0, 3.0
 
 # --------------------------------------------------------------------------- #
 # Catalogue
