@@ -1098,16 +1098,6 @@ with st.container():
     def _iso(d):
         return (int(d.isocalendar().year), int(d.isocalendar().week))
 
-    def detect_date_header(grid, max_search=6):
-        """Find the row that holds the dates (search the first few rows). Returns
-        (row_index, [(col, date), ...] sorted by col). Handles multi-row headers."""
-        best_row, best = None, []
-        for r in range(min(max_search, len(grid))):
-            starts = [(c, _to_date(grid[r][c])) for c in range(len(grid[r])) if _to_date(grid[r][c])]
-            if len(starts) > len(best):
-                best, best_row = starts, r
-        return best_row, sorted(best, key=lambda x: x[0])
-
     def date_groups_from(date_starts, ncols_full):
         """Each date owns the columns from its start up to the next date's start
         (so a date that visually spans several sub-columns keeps them all)."""
@@ -1120,7 +1110,7 @@ with st.container():
     # horizontal dates (a header row anywhere in the first rows) — generic.
     # `detect_date_header` locates date-like cells permissively; we then lock the
     # correct format for THIS metric and re-parse (fixes DD-MM vs MM-DD sheets).
-    dr_row, date_starts = detect_date_header(values)
+    dr_row, date_starts = dl.detect_date_header(values)
     if dr_row is not None and len(date_starts) >= 4:
         cols = [c for c, _ in date_starts]
         parser = _choose_parser([values[dr_row][c] for c in cols])
