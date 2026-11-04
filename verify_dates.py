@@ -36,15 +36,6 @@ def _drop_blank(values):
     return [[(r[c] if c < len(r) else "") for c in keep] for r in values]
 
 
-def _detect_header(grid, ms=6):
-    best, br = [], None
-    for r in range(min(ms, len(grid))):
-        cols = [c for c in range(len(grid[r])) if dl.to_date(grid[r][c]) is not None]
-        if len(cols) > len(best):
-            best, br = cols, r
-    return br, sorted(best)
-
-
 def analyse(sa, tab):
     mr, mc = dl.grid_window(tab["cols"], tab["rows"])
     values, _colors, trunc = dl.load_tab_grid(sa, tab["title"], max_rows=mr, max_cols=mc)
@@ -53,13 +44,11 @@ def analyse(sa, tab):
         return {"title": tab["title"], "layout": "empty", "dates": 0}
 
     # horizontal
-    br, cols = _detect_header(values)
+    br, ds_raw = dl.detect_date_header(values)
     layout, ds = "none", []
-    if br is not None and len(cols) >= 4:
-        parse = dl.choose_parser([values[br][c] for c in cols])
-        ds = [(c, parse(values[br][c])) for c in cols if parse(values[br][c]) is not None]
-        if len(ds) >= 4:
-            layout = "horizontal"
+    if br is not None and len(ds_raw) >= 4:
+        ds = ds_raw
+        layout = "horizontal"
     if layout == "none":
         # vertical (col 0)
         col0 = [(r, values[r][0]) for r in range(1, len(values))

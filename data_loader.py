@@ -387,12 +387,31 @@ def _parse_group(s, fmts):
     return None
 
 
+def _from_serial(s: str):
+    """Google Sheets / Excel day serial (origin 1899-12-30), when shown as a plain number."""
+    try:
+        n = float(str(s).strip().replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+    if n != int(n):
+        return None
+    n = int(n)
+    if n < 30000 or n > 70000:
+        return None
+    return pd.Timestamp("1899-12-30") + pd.Timedelta(days=n)
+
+
 def to_date(s):
     """Permissive parse — matches under ANY known format (day-first preferred).
     Used to LOCATE date-like cells; final values are re-parsed with the chosen
     per-metric order."""
     s = str(s).strip()
-    if not s or len(s) < 5:        # allows year-less single-digit day, e.g. "8-Feb"
+    if not s:
+        return None
+    d = _from_serial(s)
+    if d is not None:
+        return d
+    if len(s) < 5:        # allows year-less single-digit day, e.g. "8-Feb"
         return None
     for fmt in DATE_FMTS:
         d = try_fmt(s, fmt)
@@ -401,17 +420,69 @@ def to_date(s):
     return None
 
 
+def detect_date_header(grid, max_search: int = 20, min_dates: int = 4):
+    """Row index and [(col, Timestamp), ...] for the active date header.
+
+    Picks the row whose dates extend furthest into the future and that has
+    values under those columns — not a legacy template row full of empty
+    placeholder dates (common on Invoice Sanity–style tabs).
+    """
+    best_row, best_starts = None, []
+    best_key = None
+    empty = {"", "-", "—", "na", "n/a"}
+
+    for r in range(min(max_search, len(grid))):
+        cols = [c for c in range(len(grid[r])) if to_date(grid[r][c]) is not None]
+        if len(cols) < min_dates:
+            continue
+        parser = choose_parser([grid[r][c] for c in cols])
+        starts = []
+        for c in cols:
+            d = parser(grid[r][c])
+            if d is not None:
+                starts.append((c, pd.Timestamp(d)))
+        if len(starts) < min_dates:
+            continue
+
+        max_d = max(d for _, d in starts)
+        fill = 0
+        data_end = len(grid)
+        for r_h in range(r + 1, min(len(grid), r + max_search)):
+            n_h = sum(1 for c in range(len(grid[r_h])) if to_date(grid[r_h][c]) is not None)
+            if n_h >= min_dates:
+                data_end = r_h
+                break
+        for r2 in range(r + 1, data_end):
+            row = grid[r2]
+            for c, _ in starts:
+                if c < len(row) and str(row[c]).strip() not in empty:
+                    fill += 1
+
+        key = (max_d, fill, len(starts))
+        if best_key is None or key > best_key:
+            best_key, best_row, best_starts = key, r, starts
+
+    return best_row, sorted(best_starts, key=lambda x: x[0])
+
+
 def _score_group(strings, fmts):
-    """(#cells parsed, best monotonic fraction in EITHER direction). Real tabs
-    can be laid out oldest- or newest-first, so monotonicity is bidirectional."""
+    """(#cells parsed, best monotonic fraction, daily-cadence tie-break).
+
+    Real tabs can be oldest- or newest-first. When DD-MM and MM-DD both parse an
+    ambiguous slash column (e.g. 11/1/2026), prefer the interpretation whose
+    consecutive columns are ~1 day apart (Invoice Sanity, Bulk MM-DD, etc.).
+    """
     seq = [d for d in (_parse_group(s, fmts) for s in strings) if d is not None]
     if not seq:
-        return (0, 0.0)
+        return (0, 0.0, -9999.0)
     if len(seq) == 1:
-        return (1, 1.0)
+        return (1, 1.0, 0.0)
     asc = sum(1 for a, b in zip(seq, seq[1:]) if b >= a)
     desc = sum(1 for a, b in zip(seq, seq[1:]) if b <= a)
-    return (len(seq), max(asc, desc) / (len(seq) - 1))
+    mono = max(asc, desc) / (len(seq) - 1)
+    deltas = [abs(int((seq[i + 1] - seq[i]).days)) for i in range(len(seq) - 1)]
+    cadence = -(sum(deltas) / len(deltas))   # higher score when deltas are smaller
+    return (len(seq), mono, cadence)
 
 
 def best_fmt(strings):
@@ -422,7 +493,7 @@ def best_fmt(strings):
 
 def _best_group(strings):
     strings = [s for s in strings if str(s).strip()]
-    best, best_score = None, (-1, -1.0)
+    best, best_score = None, (-1, -1.0, -9999.0)
     for _name, fmts in _ORDER_GROUPS:          # priority order; '>' keeps earlier on tie
         score = _score_group(strings, fmts)
         if score > best_score:
@@ -440,7 +511,12 @@ def choose_parser(strings):
 
     def parse(s):
         s2 = str(s).strip()
-        if not s2 or len(s2) < 5:        # allow year-less single-digit days, e.g. "1-Jul"
+        if not s2:
+            return None
+        d = _from_serial(s2)
+        if d is not None:
+            return d
+        if len(s2) < 5:        # allow year-less single-digit days, e.g. "1-Jul"
             return None
         d = _parse_group(s2, grp)
         return d if d is not None else to_date(s2)
