@@ -1162,16 +1162,18 @@ with st.container():
             """
             selected = set(selected_dates)
             out = []
-            for c in range(first_date_col, ncols_full):
-                d = _to_date(values[dr_row][c]) if c < len(values[dr_row]) else None
-                if d is None:
-                    # Detail/sub-columns belong to the most recent date group
-                    # until another explicit date header begins.
-                    owners = [d0 for d0, cols0 in gmap.items() if c in cols0]
-                    if owners and owners[0] in selected:
+            # Do not preserve physical tracker order here. HJR puts the newest
+            # date at the left; other tabs append it at the right. Rendering
+            # selected groups in date order gives every FC tab the same contract:
+            # latest date is the first data column.
+            for d in sorted(selected, reverse=True):
+                for c in gmap.get(d, []):
+                    header_date = (
+                        _to_date(values[dr_row][c])
+                        if c < len(values[dr_row]) else None
+                    )
+                    if header_date is None or header_date == d:
                         out.append(c)
-                elif d in selected:
-                    out.append(c)
             return labels + out
 
         t_over, t_week, t_month = st.tabs(["Overall (last 4 days)", "Week", "Month"])
