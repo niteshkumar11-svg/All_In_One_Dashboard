@@ -1150,20 +1150,44 @@ with st.container():
         gmap = date_groups_from(date_starts, ncols_full)
         dates_desc = sorted(gmap.keys(), reverse=True)
         frz = (fr, first_date_col)                       # freeze header rows + label cols
+
+        def date_columns(selected_dates):
+            """Return only columns belonging to selected date headers.
+
+            Some FC tracker tabs are physically out of order (for example July,
+            September, then November). A date group can therefore span older
+            columns when it is derived from the sheet's physical order. Filter
+            the final list against the header row so Overall never leaks stale
+            dates into the latest-four view.
+            """
+            selected = set(selected_dates)
+            out = []
+            for c in range(first_date_col, ncols_full):
+                d = _to_date(values[dr_row][c]) if c < len(values[dr_row]) else None
+                if d is None:
+                    # Detail/sub-columns belong to the most recent date group
+                    # until another explicit date header begins.
+                    owners = [d0 for d0, cols0 in gmap.items() if c in cols0]
+                    if owners and owners[0] in selected:
+                        out.append(c)
+                elif d in selected:
+                    out.append(c)
+            return labels + out
+
         t_over, t_week, t_month = st.tabs(["Overall (last 4 days)", "Week", "Month"])
         with t_over:
-            cols = labels + [c for d in dates_desc[:4] for c in gmap[d]]
+            cols = date_columns(dates_desc[:4])
             show_cols(cols, frz)
         with t_week:
             weeks = sorted({_iso(d) for d in gmap}, reverse=True)
             wk = st.selectbox("Week", weeks, key="wk_sel", format_func=lambda k: f"Week {k[1]}, {k[0]}")
-            cols = labels + [c for d in dates_desc if _iso(d) == wk for c in gmap[d]]
+            cols = date_columns([d for d in dates_desc if _iso(d) == wk])
             show_cols(cols, frz)
         with t_month:
             months = sorted({(d.year, d.month) for d in gmap}, reverse=True)
             mo = st.selectbox("Month", months, key="mo_sel",
                               format_func=lambda k: pd.Timestamp(year=k[0], month=k[1], day=1).strftime("%B %Y"))
-            cols = labels + [c for d in dates_desc if (d.year, d.month) == mo for c in gmap[d]]
+            cols = date_columns([d for d in dates_desc if (d.year, d.month) == mo])
             show_cols(cols, frz)
     elif date_rows:
         # ---- dates down the first column: slice ROWS (latest first) ----
