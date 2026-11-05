@@ -565,6 +565,33 @@ def _session(service_account_info: dict):
     return AuthorizedSession(creds)
 
 
+def probe_used_columns(service_account_info: dict, title: str,
+                       spreadsheet_id: str = SPREADSHEET_ID,
+                       header_rows: int = 25) -> int:
+    """Rightmost populated column in the header area (Values API, trailing-empty trim).
+
+    gridProperties.columnCount often lags when new date columns are added at the
+    far right; trusting it alone left HJR / Herbalife stuck on July dates.
+    """
+    from urllib.parse import quote
+    sess = _session(service_account_info)
+    safe = title.replace("'", "''")
+    rng = quote(f"'{safe}'!1:{header_rows}")
+    url = f"{_API}/{spreadsheet_id}/values/{rng}"
+    resp = sess.get(url).json()
+    if "error" in resp:
+        return 0
+    rows = resp.get("values") or []
+    return max((len(r) for r in rows), default=0)
+
+
+def effective_sheet_columns(service_account_info: dict, title: str,
+                            meta_cols: int,
+                            spreadsheet_id: str = SPREADSHEET_ID) -> int:
+    probed = probe_used_columns(service_account_info, title, spreadsheet_id)
+    return max(int(meta_cols or 0), probed, 60)
+
+
 def load_meta(service_account_info: dict, spreadsheet_id: str = SPREADSHEET_ID,
               include_hidden: bool = False) -> list[dict]:
     """List visible tabs with parsed function/metric, freeze settings and merges.
@@ -643,7 +670,9 @@ def load_tab_grid(service_account_info: dict, title: str,
     from urllib.parse import quote
     sess = _session(service_account_info)
     safe = title.replace("'", "''")
-    sheet_cols = max(int(total_cols or max_cols), max_cols)
+    meta_cols = int(total_cols or max_cols)
+    sheet_cols = effective_sheet_columns(service_account_info, title, meta_cols,
+                                         spreadsheet_id)
     chunk_w = max_cols
     fields = ("sheets(data(rowData(values(formattedValue,effectiveFormat.backgroundColor,"
               "effectiveFormat.textFormat.bold))))")
@@ -651,8 +680,11 @@ def load_tab_grid(service_account_info: dict, title: str,
     def fetch_range(c0: int, c1: int):
         rng = quote(f"'{safe}'!{_col_a1(c0)}1:{_col_a1(c1)}{max_rows}")
         url = f"{_API}/{spreadsheet_id}?ranges={rng}&includeGridData=true&fields={fields}"
-        data = sess.get(url).json().get("sheets", [{}])[0].get("data", [{}])[0]
-        return _grid_from_row_data(data.get("rowData", []))
+        data = sess.get(url).json()
+        if "error" in data:
+            raise ValueError(f"Sheets API error loading {title!r}: {data['error']}")
+        return _grid_from_row_data(data.get("sheets", [{}])[0].get("data", [{}])[0]
+                                   .get("rowData", []))
 
     grid_v, grid_c = None, None
     width_trunc = False

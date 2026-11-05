@@ -965,21 +965,22 @@ def _has_sa() -> bool:
         return False
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def get_meta(tick: int = 0) -> list:
     return dl.load_meta(dict(st.secrets["gcp_service_account"]))
 
 
-@st.cache_data(ttl=300, show_spinner="Loading table…")
+@st.cache_data(ttl=120, show_spinner="Loading table…")
 def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
     # Date-grouped tables run oldest→newest left→right, so the LATEST dates live in
     # the rightmost columns — we must fetch the full width or "last 4 days" silently
     # shows stale / half-cut dates (e.g. Loss HJR past col 700 / ZX while 28-Jul
     # sits at AAL). The API only returns populated cells, so a large A1 window
     # stays cheap.
+    sa = dict(st.secrets["gcp_service_account"])
     mr, mc = dl.grid_window(ncols, nrows)
-    return dl.load_tab_grid(dict(st.secrets["gcp_service_account"]), title,
-                            max_rows=mr, max_cols=mc, total_cols=ncols)
+    sheet_cols = dl.effective_sheet_columns(sa, title, ncols)
+    return dl.load_tab_grid(sa, title, max_rows=mr, max_cols=mc, total_cols=sheet_cols)
 
 
 # --------------------------------------------------------------------------- #
