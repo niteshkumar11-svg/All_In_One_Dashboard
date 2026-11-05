@@ -1179,19 +1179,13 @@ with st.container():
 
         t_over, t_week, t_month = st.tabs(["Overall (last 4 days)", "Week", "Month"])
         with t_over:
-            # HJR is a newest-first tracker: its active dates are the first
-            # date groups on the left, while the right side is historical
-            # July data. Do not let date sorting select those right-side
-            # columns for HJR's stakeholder-facing Overall view.
-            if tab["function"] == "FC" and tab["metric"].strip().lower() == "hjr":
-                cols = labels + [c for c, _ in date_starts[:4]]
-            else:
-                # Select only explicit date-header cells. Group spans can
-                # include historical columns when tracker dates are unordered.
-                overall_starts = sorted(
-                    date_starts, key=lambda x: x[1], reverse=True
-                )[:4]
-                cols = labels + [c for c, _ in overall_starts]
+            # Select only explicit date-header cells and order them by the
+            # parsed calendar date. This is independent of whether the sheet
+            # stores newest dates on the left or right.
+            overall_starts = sorted(
+                date_starts, key=lambda x: pd.Timestamp(x[1]), reverse=True
+            )[:4]
+            cols = labels + [c for c, _ in overall_starts]
             show_cols(cols, frz)
         with t_week:
             weeks = sorted({_iso(d) for d in gmap}, reverse=True)
