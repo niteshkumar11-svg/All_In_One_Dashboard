@@ -1184,16 +1184,14 @@ with st.container():
             # July data. Do not let date sorting select those right-side
             # columns for HJR's stakeholder-facing Overall view.
             if tab["function"] == "FC" and tab["metric"].strip().lower() == "hjr":
-                overall_dates = [d for _, d in date_starts[:4]]
+                cols = labels + [c for c, _ in date_starts[:4]]
             else:
-                overall_dates = dates_desc[:4]
-            cols = date_columns(
-                overall_dates,
-                newest_first=not (
-                    tab["function"] == "FC"
-                    and tab["metric"].strip().lower() == "hjr"
-                ),
-            )
+                # Select only explicit date-header cells. Group spans can
+                # include historical columns when tracker dates are unordered.
+                overall_starts = sorted(
+                    date_starts, key=lambda x: x[1], reverse=True
+                )[:4]
+                cols = labels + [c for c, _ in overall_starts]
             show_cols(cols, frz)
         with t_week:
             weeks = sorted({_iso(d) for d in gmap}, reverse=True)
