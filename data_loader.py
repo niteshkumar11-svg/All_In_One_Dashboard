@@ -567,7 +567,7 @@ def _session(service_account_info: dict):
 
 def probe_used_columns(service_account_info: dict, title: str,
                        spreadsheet_id: str = SPREADSHEET_ID,
-                       header_rows: int = 25) -> int:
+                       header_rows: int = 100) -> int:
     """Rightmost populated column in the header area (Values API, trailing-empty trim).
 
     gridProperties.columnCount often lags when new date columns are added at the
