@@ -7,7 +7,7 @@ def test_prefers_width_over_rows():
     # and then shrunk width further under budget.
     mr, mc = dl.grid_window(726, 1000)
     assert mc >= 726, (mr, mc)
-    assert mr * mc <= 400_000
+    assert mr * mc <= 800_000
 
 
 def test_raises_old_700_cap():
@@ -18,7 +18,7 @@ def test_raises_old_700_cap():
 def test_budget_shrinks_rows_first():
     mr, mc = dl.grid_window(2000, 1000)
     assert mc == 2000, (mr, mc)
-    assert mr == 200, (mr, mc)  # 400_000 // 2000
+    assert mr == 400, (mr, mc)  # 800_000 // 2000
 
 
 def test_narrow_unchanged():

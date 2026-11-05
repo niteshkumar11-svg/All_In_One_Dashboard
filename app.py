@@ -979,7 +979,7 @@ def get_grid(title: str, ncols: int = 60, nrows: int = 60, tick: int = 0):
     # stays cheap.
     mr, mc = dl.grid_window(ncols, nrows)
     return dl.load_tab_grid(dict(st.secrets["gcp_service_account"]), title,
-                            max_rows=mr, max_cols=mc)
+                            max_rows=mr, max_cols=mc, total_cols=ncols)
 
 
 # --------------------------------------------------------------------------- #

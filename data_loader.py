@@ -533,13 +533,13 @@ def _col_a1(n: int) -> str:
 
 
 def grid_window(ncols: int, nrows: int,
-                col_cap: int = 2000, row_cap: int = 400,
-                budget: int = 400_000) -> tuple[int, int]:
+                col_cap: int = 2500, row_cap: int = 400,
+                budget: int = 800_000) -> tuple[int, int]:
     """API fetch window (rows, cols). Prefer width: newest dates are rightmost.
 
-    Sheets like Loss HJR already extend past column 700 (ZX) — 28-Jul lives around
-    AAL (~714). Shrinking columns to fit a cell budget silently drops those days
-    (Overall then shows a truncated latest day, e.g. only SC-RC / MRD for 27-Jul).
+    Wide FC tabs (HJR, Herbalife, …) extend past column 2000 by Nov; a single
+    A1 window capped at 2000 columns silently drops those days and Overall
+    keeps showing stale July dates. Chunks in load_tab_grid use this width.
     """
     mc = min(max(int(ncols), 60), col_cap)
     mr = min(max(int(nrows), 40), row_cap)
@@ -598,23 +598,7 @@ def load_meta(service_account_info: dict, spreadsheet_id: str = SPREADSHEET_ID,
     return tabs
 
 
-def load_tab_grid(service_account_info: dict, title: str,
-                  spreadsheet_id: str = SPREADSHEET_ID,
-                  max_rows: int = 300, max_cols: int = 200) -> tuple[list, list, bool]:
-    """Fetch one tab's values + per-cell formatting (bounded window).
-    Returns (values_grid, format_grid, truncated) where each format cell is a
-    (background_hex, is_bold) tuple mirroring the sheet's own formatting."""
-    from urllib.parse import quote
-    sess = _session(service_account_info)
-    safe = title.replace("'", "''")
-    rng = quote(f"'{safe}'!A1:{_col_a1(max_cols)}{max_rows}")
-    url = (
-        f"{_API}/{spreadsheet_id}?ranges={rng}&includeGridData=true"
-        "&fields=sheets(data(rowData(values("
-        "formattedValue,effectiveFormat.backgroundColor,effectiveFormat.textFormat.bold))))"
-    )
-    data = sess.get(url).json().get("sheets", [{}])[0].get("data", [{}])[0]
-    row_data = data.get("rowData", [])
+def _grid_from_row_data(row_data: list) -> tuple[list, list]:
     values, colors = [], []
     for rd in row_data:
         cells = rd.get("values", [])
@@ -622,8 +606,68 @@ def load_tab_grid(service_account_info: dict, title: str,
         colors.append([(_bg_hex(c),
                         bool(c.get("effectiveFormat", {}).get("textFormat", {}).get("bold")))
                        for c in cells])
-    truncated = len(values) >= max_rows or any(len(r) >= max_cols for r in values)
-    return values, colors, truncated
+    return values, colors
+
+
+def _merge_grid_chunk(grid_v, grid_c, col_offset: int,
+                      chunk_v, chunk_c, total_cols: int):
+    if not chunk_v:
+        return grid_v, grid_c
+    if grid_v is None:
+        nrows = len(chunk_v)
+        grid_v = [[""] * total_cols for _ in range(nrows)]
+        grid_c = [[("", False)] * total_cols for _ in range(nrows)]
+    if len(chunk_v) > len(grid_v):
+        extra = len(chunk_v) - len(grid_v)
+        grid_v.extend([[""] * total_cols for _ in range(extra)])
+        grid_c.extend([[("", False)] * total_cols for _ in range(extra)])
+    for r, row in enumerate(chunk_v):
+        for j, val in enumerate(row):
+            ci = col_offset + j
+            if ci < total_cols:
+                grid_v[r][ci] = val
+                grid_c[r][ci] = chunk_c[r][j]
+    return grid_v, grid_c
+
+
+def load_tab_grid(service_account_info: dict, title: str,
+                  spreadsheet_id: str = SPREADSHEET_ID,
+                  max_rows: int = 300, max_cols: int = 200,
+                  total_cols: int | None = None) -> tuple[list, list, bool]:
+    """Fetch one tab's values + per-cell formatting (bounded window).
+
+    When the sheet is wider than ``max_cols``, fetches column chunks and merges
+    so rightmost date columns (e.g. Nov) are not dropped. Returns
+    (values_grid, format_grid, truncated).
+    """
+    from urllib.parse import quote
+    sess = _session(service_account_info)
+    safe = title.replace("'", "''")
+    sheet_cols = max(int(total_cols or max_cols), max_cols)
+    chunk_w = max_cols
+    fields = ("sheets(data(rowData(values(formattedValue,effectiveFormat.backgroundColor,"
+              "effectiveFormat.textFormat.bold))))")
+
+    def fetch_range(c0: int, c1: int):
+        rng = quote(f"'{safe}'!{_col_a1(c0)}1:{_col_a1(c1)}{max_rows}")
+        url = f"{_API}/{spreadsheet_id}?ranges={rng}&includeGridData=true&fields={fields}"
+        data = sess.get(url).json().get("sheets", [{}])[0].get("data", [{}])[0]
+        return _grid_from_row_data(data.get("rowData", []))
+
+    grid_v, grid_c = None, None
+    width_trunc = False
+    if sheet_cols <= chunk_w:
+        grid_v, grid_c = fetch_range(1, sheet_cols)
+        width_trunc = any(len(r) >= sheet_cols for r in grid_v)
+    else:
+        for c0 in range(1, sheet_cols + 1, chunk_w):
+            c1 = min(c0 + chunk_w - 1, sheet_cols)
+            chunk_v, chunk_c = fetch_range(c0, c1)
+            width_trunc = width_trunc or any(len(r) >= (c1 - c0 + 1) for r in chunk_v)
+            grid_v, grid_c = _merge_grid_chunk(grid_v, grid_c, c0 - 1, chunk_v, chunk_c,
+                                               sheet_cols)
+    truncated = len(grid_v or []) >= max_rows or width_trunc
+    return grid_v or [], grid_c or [], truncated
 
 
 def load_snapshot(path: Path = SNAPSHOT_PATH) -> tuple[pd.DataFrame, dict]:

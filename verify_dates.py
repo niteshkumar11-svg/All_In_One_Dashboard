@@ -38,7 +38,8 @@ def _drop_blank(values):
 
 def analyse(sa, tab):
     mr, mc = dl.grid_window(tab["cols"], tab["rows"])
-    values, _colors, trunc = dl.load_tab_grid(sa, tab["title"], max_rows=mr, max_cols=mc)
+    values, _colors, trunc = dl.load_tab_grid(sa, tab["title"], max_rows=mr, max_cols=mc,
+                                              total_cols=tab["cols"])
     values = _drop_blank(values)
     if not values:
         return {"title": tab["title"], "layout": "empty", "dates": 0}
