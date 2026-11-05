@@ -567,11 +567,12 @@ def _session(service_account_info: dict):
 
 def probe_used_columns(service_account_info: dict, title: str,
                        spreadsheet_id: str = SPREADSHEET_ID,
-                       header_rows: int = 100) -> int:
-    """Rightmost populated column in the header area (Values API, trailing-empty trim).
+                       header_rows: int = 400) -> int:
+    """Rightmost populated column in the loaded sheet area.
 
-    gridProperties.columnCount often lags when new date columns are added at the
-    far right; trusting it alone left HJR / Herbalife stuck on July dates.
+    gridProperties.columnCount can lag when new date columns are added at the
+    far right. Some tabs (notably HJR) put the active date/data block below the
+    first 100 rows, so scan the complete dashboard fetch height.
     """
     from urllib.parse import quote
     sess = _session(service_account_info)
