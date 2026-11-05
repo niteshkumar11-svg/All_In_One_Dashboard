@@ -1151,7 +1151,7 @@ with st.container():
         dates_desc = sorted(gmap.keys(), reverse=True)
         frz = (fr, first_date_col)                       # freeze header rows + label cols
 
-        def date_columns(selected_dates):
+        def date_columns(selected_dates, newest_first=True):
             """Return only columns belonging to selected date headers.
 
             Some FC tracker tabs are physically out of order (for example July,
@@ -1166,7 +1166,8 @@ with st.container():
             # date at the left; other tabs append it at the right. Rendering
             # selected groups in date order gives every FC tab the same contract:
             # latest date is the first data column.
-            for d in sorted(selected, reverse=True):
+            ordered_dates = sorted(selected, reverse=True) if newest_first else list(selected_dates)
+            for d in ordered_dates:
                 for c in gmap.get(d, []):
                     header_date = (
                         _to_date(values[dr_row][c])
@@ -1178,7 +1179,21 @@ with st.container():
 
         t_over, t_week, t_month = st.tabs(["Overall (last 4 days)", "Week", "Month"])
         with t_over:
-            cols = date_columns(dates_desc[:4])
+            # HJR is a newest-first tracker: its active dates are the first
+            # date groups on the left, while the right side is historical
+            # July data. Do not let date sorting select those right-side
+            # columns for HJR's stakeholder-facing Overall view.
+            if tab["function"] == "FC" and tab["metric"].strip().lower() == "hjr":
+                overall_dates = [d for _, d in date_starts[:4]]
+            else:
+                overall_dates = dates_desc[:4]
+            cols = date_columns(
+                overall_dates,
+                newest_first=not (
+                    tab["function"] == "FC"
+                    and tab["metric"].strip().lower() == "hjr"
+                ),
+            )
             show_cols(cols, frz)
         with t_week:
             weeks = sorted({_iso(d) for d in gmap}, reverse=True)
